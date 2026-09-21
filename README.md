@@ -31,14 +31,23 @@ drawn between a **delta** (triradius) and a **core** (pattern center).
 
 ## Usage
 
+Two equivalent entry points ship in this repo:
+
+- `ridge_scanner/` — the modular package (one file per pipeline stage).
+- `ridge_count_standalone.py` — the exact same logic consolidated into a
+  single file, for dropping into another project or running with no
+  package install.
+
 ```bash
 pip install -r requirements.txt
 
 # Auto-detect core/delta (verify the warnings + annotated image!)
 python -m ridge_scanner.cli path/to/scan.png --output-dir out/
+# or, single-file version:
+python ridge_count_standalone.py path/to/scan.png --output-dir out/
 
 # Manually specify core/delta (recommended for accuracy)
-python -m ridge_scanner.cli path/to/scan.png --core 128,85 --delta 128,200 --output-dir out/
+python ridge_count_standalone.py path/to/scan.png --core 128,85 --delta 128,200 --output-dir out/
 ```
 
 This writes `out/annotated.png` (visual proof of the count) and
