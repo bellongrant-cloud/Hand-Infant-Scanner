@@ -144,58 +144,92 @@ series = [
     ('Timed Capture', E['Q.captured'], E['U.Q_captured'], 'P'),
 ]
 x = E['Q.target'] / g
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots(figsize=(7.2, 5.0), dpi=100)
-for name, y, u, mk in series:
-    ax.errorbar(x, y / g, yerr=u / g, marker=mk, ms=5, capsize=3, lw=1, label=name)
-ax.plot([2, 8], [2, 8], 'k--', lw=0.8, label='Q = Q_target')
-ax.set_xlabel('Target Flowrate, Q_target (GPM)')
-ax.set_ylabel('Measured Flowrate, Q (GPM)')
-ax.set_title('Measured Flowrate vs. Target Flowrate')
-ax.grid(alpha=0.3)
-ax.legend(fontsize=8, loc='upper left')
-fig.tight_layout()
-png = os.path.join(OUT, 'Lab_04_-_Flowrate_Plot.png')
-fig.savefig(png)
 
-S.space(10)
-S.text('Plots', bold=True, h=26)
-S.text('All six flowrate measurements vs. the target flowrate, with error bars showing ± uncertainty '
-       '(the same chart is built in the accompanying Excel workbook).')
-S.picture(png, 720, 500)
-
-# ------------------------------------------------------------------ excel workbook with native chart
+# ------------------------------------------------------------------ excel workbook (the source of the plot)
+# Every visual property is set explicitly so Excel and the LibreOffice render
+# used for the SMath picture draw the same chart.
+import subprocess, tempfile, shutil
 from openpyxl import Workbook
 from openpyxl.chart import ScatterChart, Reference, Series
 from openpyxl.chart.error_bar import ErrorBars
 from openpyxl.chart.data_source import NumDataSource, NumRef
-wb = Workbook(); ws = wb.active; ws.title = 'Flowrates (GPM)'
-hdr = ['Setting', 'Q_target']
-for name, *_ in series:
-    hdr += [name, 'U ' + name]
-ws.append(hdr)
-for k, pct in enumerate([100, 80, 70, 60, 50, 40]):
-    r = [f'{pct}%', round(float(x[k]), 4)]
-    for _, y, u, _ in series:
-        r += [round(float(y[k] / g), 4), round(float(u[k] / g), 4)]
-    ws.append(r)
-ch = ScatterChart(); ch.title = 'Measured Flowrate vs. Target Flowrate'; ch.style = 13
-ch.x_axis.title = 'Target Flowrate, Q_target (GPM)'; ch.y_axis.title = 'Measured Flowrate (GPM)'
-ch.height, ch.width = 11, 18
-xr = Reference(ws, min_col=2, min_row=2, max_row=7)
-for j, (name, *_rest) in enumerate(series):
-    col = 3 + 2 * j
-    s = Series(Reference(ws, min_col=col, min_row=2, max_row=7), xr, title=name)
-    s.marker.symbol = 'circle'; s.graphicalProperties.line.noFill = True
-    ref = NumRef(f=f"'Flowrates (GPM)'!${chr(64 + col + 1)}$2:${chr(64 + col + 1)}$7")
-    s.errBars = ErrorBars(errDir='y', errBarType='both', errValType='cust', noEndCap=False,
-                          plus=NumDataSource(numRef=ref), minus=NumDataSource(numRef=ref))
-    ch.series.append(s)
-ch.x_axis.delete = False; ch.y_axis.delete = False
-ws.add_chart(ch, 'B10')
-wb.save(os.path.join(OUT, 'Lab_04_-_Flowrate_Plot.xlsx'))
+from openpyxl.chart.layout import Layout, ManualLayout
+from openpyxl.chart.shapes import GraphicalProperties
+from openpyxl.drawing.line import LineProperties
+
+SHEET = 'Flowrates (GPM)'
+COLORS = ['1F77B4', 'FF7F0E', '2CA02C', 'D62728', '9467BD', '8C564B']
+SYMBOLS = ['circle', 'square', 'triangle', 'diamond', 'x', 'star']
+
+
+def build_workbook(chart_only_sheet=False):
+    wb = Workbook(); ws = wb.active; ws.title = SHEET
+    hdr = ['Setting', 'Q_target']
+    for name, *_ in series:
+        hdr += [name, 'U ' + name]
+    ws.append(hdr)
+    for k, pct in enumerate([100, 80, 70, 60, 50, 40]):
+        r = [f'{pct}%', round(float(x[k]), 4)]
+        for _, y, u, _ in series:
+            r += [round(float(y[k] / g), 4), round(float(u[k] / g), 4)]
+        ws.append(r)
+    ch = ScatterChart(); ch.title = 'Measured Flowrate vs. Target Flowrate'
+    ch.style = 2; ch.scatterStyle = 'lineMarker'
+    ch.x_axis.title = 'Target Flowrate, Q_target (GPM)'
+    ch.y_axis.title = 'Measured Flowrate, Q (GPM)'
+    ch.x_axis.scaling.min, ch.x_axis.scaling.max, ch.x_axis.majorUnit = 2, 8, 1
+    ch.y_axis.scaling.min, ch.y_axis.scaling.max, ch.y_axis.majorUnit = 0, 11, 1
+    ch.x_axis.delete = False; ch.y_axis.delete = False
+    ch.x_axis.number_format = '0'; ch.y_axis.number_format = '0'
+    ch.legend.position = 'r'
+    ch.height, ch.width = 12, 20
+    xr = Reference(ws, min_col=2, min_row=2, max_row=7)
+    for j, (name, *_rest) in enumerate(series):
+        col = 3 + 2 * j
+        s = Series(Reference(ws, min_col=col, min_row=2, max_row=7), xr, title=name)
+        s.marker.symbol = SYMBOLS[j]; s.marker.size = 7
+        s.marker.graphicalProperties = GraphicalProperties(solidFill=COLORS[j])
+        s.marker.graphicalProperties.line.solidFill = COLORS[j]
+        s.graphicalProperties.line.noFill = True
+        ucol = chr(64 + col + 1)
+        ref = NumRef(f=f"'{SHEET}'!${ucol}$2:${ucol}$7")
+        s.errBars = ErrorBars(errDir='y', errBarType='both', errValType='cust', noEndCap=False,
+                              plus=NumDataSource(numRef=ref), minus=NumDataSource(numRef=ref),
+                              spPr=GraphicalProperties(ln=LineProperties(solidFill=COLORS[j], w=12700)))
+        ch.series.append(s)
+    if chart_only_sheet:
+        cs = wb.create_sheet('Chart', 0); cs.add_chart(ch, 'A1'); wb.active = 0
+        cs.page_setup.orientation = 'landscape'
+        cs.page_margins.left = cs.page_margins.right = cs.page_margins.top = cs.page_margins.bottom = 0.3
+    else:
+        ws.add_chart(ch, 'B10')
+    return wb
+
+
+xlsx = os.path.join(OUT, 'Lab_04_-_Flowrate_Plot.xlsx')
+build_workbook().save(xlsx)
+
+# Render the same chart to PNG with LibreOffice (chart on its own sheet -> PDF -> PNG).
+import pymupdf
+from PIL import Image, ImageChops
+png = os.path.join(OUT, 'Lab_04_-_Flowrate_Plot.png')
+tmp = tempfile.mkdtemp()
+build_workbook(chart_only_sheet=True).save(os.path.join(tmp, 'chart.xlsx'))
+subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', '--outdir', tmp,
+                os.path.join(tmp, 'chart.xlsx')], check=True, capture_output=True)
+page = pymupdf.open(os.path.join(tmp, 'chart.pdf'))[0]
+page.get_pixmap(dpi=110).save(png)
+im = Image.open(png).convert('RGB')
+bbox = ImageChops.difference(im, Image.new('RGB', im.size, 'white')).getbbox()
+im = im.crop((max(bbox[0] - 12, 0), max(bbox[1] - 12, 0), bbox[2] + 12, bbox[3] + 12))
+im.thumbnail((740, 740)); im.save(png)
+shutil.rmtree(tmp)
+
+S.space(10)
+S.text('Plots', bold=True, h=26)
+S.text('All six flowrate measurements vs. the target flowrate, with error bars showing ± uncertainty. '
+       'Chart generated in MS Excel (Lab_04_-_Flowrate_Plot.xlsx) and pasted here.')
+S.picture(png, im.size[0], im.size[1])
 
 # ------------------------------------------------------------------ Q&A
 S.text('Q/A', bold=True, h=26)
