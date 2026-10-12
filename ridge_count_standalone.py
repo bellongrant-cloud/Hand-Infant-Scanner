@@ -580,12 +580,11 @@ def run_ridge_count(
 # Visualization
 # --------------------------------------------------------------------------
 
-def render_annotation(image_path: str, result: RidgeCountResult, out_path: str) -> None:
-    base = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    if base is None:
-        raise FileNotFoundError(image_path)
-
-    overlay = base.copy()
+def build_annotation_overlay(base_bgr: np.ndarray, result: RidgeCountResult) -> np.ndarray:
+    """Draw the skeleton, core/delta points, counting line, and each
+    counted crossing onto a copy of the base BGR image and return it.
+    """
+    overlay = base_bgr.copy()
     overlay[result.skeleton] = (255, 128, 0)  # BGR skeleton overlay
 
     cv2.line(overlay, result.delta, result.core, (0, 255, 255), 1, cv2.LINE_AA)
@@ -606,6 +605,14 @@ def render_annotation(image_path: str, result: RidgeCountResult, out_path: str) 
     cv2.putText(overlay, f"ridge count: {result.count}", (10, 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
 
+    return overlay
+
+
+def render_annotation(image_path: str, result: RidgeCountResult, out_path: str) -> None:
+    base = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if base is None:
+        raise FileNotFoundError(image_path)
+    overlay = build_annotation_overlay(base, result)
     cv2.imwrite(out_path, overlay)
 
 

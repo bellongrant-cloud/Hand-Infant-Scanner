@@ -31,30 +31,49 @@ drawn between a **delta** (triradius) and a **core** (pattern center).
 
 ## Usage
 
-Two equivalent entry points ship in this repo:
+Three ways to run this, from most to least hands-on:
 
-- `ridge_scanner/` — the modular package (one file per pipeline stage).
-- `ridge_count_standalone.py` — the exact same logic consolidated into a
-  single file, for dropping into another project or running with no
-  package install. Only needs `numpy` and `opencv-python-headless` (no
-  scikit-image, no C compiler, no Visual Studio Build Tools).
+- `ridge_count_gui.py` — a point-and-click window: open an image, click to
+  mark the core/delta points on the picture itself, click "Count Ridges".
+  No typing, no coordinates. **Needs `ridge_count_standalone.py` in the
+  same folder** (it reuses that file's logic).
+- `run_ridge_count.bat` / `ridge_count_standalone.py` — drag-and-drop, or
+  command line, auto-detecting core/delta.
+- `ridge_scanner/` — the same logic as the modular package, for
+  integrating into another project.
 
-### Option A — Windows, drag-and-drop (easiest)
+All of them only need `numpy` and `opencv-python-headless` (no
+scikit-image, no C compiler, no Visual Studio Build Tools).
 
-1. Download `ridge_count_standalone.py` and `run_ridge_count.bat` into
-   the same folder.
+### Option A — Windows, point-and-click GUI (easiest, most accurate)
+
+1. Download `ridge_count_gui.py` and `ridge_count_standalone.py` (and
+   optionally `Ridge Count GUI.bat`) into the same folder.
 2. Open Command Prompt once and run:
    ```
    pip install numpy opencv-python-headless
    ```
-3. From then on, just **drag a scan image onto `run_ridge_count.bat`**.
-   It runs the tool, writes the results next to your image in a
-   `ridge_count_out` folder, and opens that folder for you.
-4. Auto-detected core/delta points are a best guess — check
-   `annotated.png`. If they're wrong, re-run from a terminal with
-   `--core X,Y --delta X,Y` (see Option B).
+3. Double-click **`Ridge Count GUI.bat`** (or run
+   `python ridge_count_gui.py`). In the window:
+   - **Open Scan Image…**
+   - Click **Mark Core**, then click the core point on the picture.
+     Click **Mark Delta**, then click the delta point.
+   - Click **Count Ridges** — the count appears, and the picture updates
+     to show exactly which ridges were counted (green dots) so you can
+     verify it at a glance.
+   - **Save Results…** to write the annotated image + a JSON report.
 
-### Option B — command line (any OS, full control)
+### Option B — Windows, drag-and-drop (no marking, auto-detect only)
+
+1. Download `ridge_count_standalone.py` and `run_ridge_count.bat` into
+   the same folder.
+2. `pip install numpy opencv-python-headless` (once).
+3. Drag a scan image onto `run_ridge_count.bat`. It runs the tool, writes
+   results next to your image in a `ridge_count_out` folder, and opens
+   that folder. Core/delta are auto-detected — check `annotated.png`,
+   since auto-detection can misfire (use Option A if it does).
+
+### Option C — command line (any OS, full control)
 
 ```bash
 pip install -r requirements.txt
@@ -107,4 +126,6 @@ python -m pytest tests/ -v
 synthetic ridge patterns with known, exact ridge counts (multiple
 spacings, horizontal/diagonal lines, endpoint exclusion, skeleton-gap
 bridging). `tests/test_pipeline_integration.py` runs the full pipeline
-end-to-end on a synthetic fingerprint-like image.
+end-to-end on a synthetic fingerprint-like image. `tests/test_gui_logic.py`
+drives the GUI (simulated clicks → count → save) and is skipped
+automatically if Tkinter or a display isn't available.
