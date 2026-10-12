@@ -120,7 +120,50 @@ def binarize(image: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:
 
 
 def skeletonize(binary: np.ndarray) -> np.ndarray:
-    """Thin a binary ridge mask to 1-pixel-wide ridge lines."""
-    from skimage.morphology import skeletonize as sk_skeletonize
+    """Thin a binary ridge mask to 1-pixel-wide ridge lines using the
+    Zhang-Suen thinning algorithm (vectorized over the whole image per
+    iteration). Implemented with plain numpy so this package has no
+    compiled-dependency (no scikit-image / C-compiler requirement).
+    """
+    img = binary.astype(np.uint8)
+    changed = True
+    while changed:
+        changed = False
+        for sub_iteration in (1, 2):
+            padded = np.pad(img, 1, mode="constant", constant_values=0)
+            p2 = padded[0:-2, 1:-1]
+            p3 = padded[0:-2, 2:]
+            p4 = padded[1:-1, 2:]
+            p5 = padded[2:, 2:]
+            p6 = padded[2:, 1:-1]
+            p7 = padded[2:, 0:-2]
+            p8 = padded[1:-1, 0:-2]
+            p9 = padded[0:-2, 0:-2]
 
-    return sk_skeletonize(binary)
+            neighbor_sum = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9
+            sequence = [p2, p3, p4, p5, p6, p7, p8, p9, p2]
+            transitions = sum(
+                (sequence[i] == 0) & (sequence[i + 1] == 1) for i in range(8)
+            ).astype(np.uint8)
+
+            if sub_iteration == 1:
+                zero_product_a = p2 * p4 * p6 == 0
+                zero_product_b = p4 * p6 * p8 == 0
+            else:
+                zero_product_a = p2 * p4 * p8 == 0
+                zero_product_b = p2 * p6 * p8 == 0
+
+            to_remove = (
+                (img == 1)
+                & (neighbor_sum >= 2)
+                & (neighbor_sum <= 6)
+                & (transitions == 1)
+                & zero_product_a
+                & zero_product_b
+            )
+
+            if np.any(to_remove):
+                img[to_remove] = 0
+                changed = True
+
+    return img.astype(bool)

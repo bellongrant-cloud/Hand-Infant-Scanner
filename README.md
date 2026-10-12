@@ -36,18 +36,37 @@ Two equivalent entry points ship in this repo:
 - `ridge_scanner/` — the modular package (one file per pipeline stage).
 - `ridge_count_standalone.py` — the exact same logic consolidated into a
   single file, for dropping into another project or running with no
-  package install.
+  package install. Only needs `numpy` and `opencv-python-headless` (no
+  scikit-image, no C compiler, no Visual Studio Build Tools).
+
+### Option A — Windows, drag-and-drop (easiest)
+
+1. Download `ridge_count_standalone.py` and `run_ridge_count.bat` into
+   the same folder.
+2. Open Command Prompt once and run:
+   ```
+   pip install numpy opencv-python-headless
+   ```
+3. From then on, just **drag a scan image onto `run_ridge_count.bat`**.
+   It runs the tool, writes the results next to your image in a
+   `ridge_count_out` folder, and opens that folder for you.
+4. Auto-detected core/delta points are a best guess — check
+   `annotated.png`. If they're wrong, re-run from a terminal with
+   `--core X,Y --delta X,Y` (see Option B).
+
+### Option B — command line (any OS, full control)
 
 ```bash
 pip install -r requirements.txt
 
 # Auto-detect core/delta (verify the warnings + annotated image!)
-python -m ridge_scanner.cli path/to/scan.png --output-dir out/
-# or, single-file version:
 python ridge_count_standalone.py path/to/scan.png --output-dir out/
 
 # Manually specify core/delta (recommended for accuracy)
 python ridge_count_standalone.py path/to/scan.png --core 128,85 --delta 128,200 --output-dir out/
+
+# The modular package works the same way:
+python -m ridge_scanner.cli path/to/scan.png --output-dir out/
 ```
 
 This writes `out/annotated.png` (visual proof of the count) and
