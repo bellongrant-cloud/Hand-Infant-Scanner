@@ -34,6 +34,60 @@ on triradii a and b.
 Keyboard: Ctrl+O to open, Ctrl+S to save, C or D to choose core or delta,
 + or − to zoom, F to fit.
 
+## Child records, Down syndrome markers and the model (research use)
+
+The **Child record** and **Model** tabs collect everything the
+dermatoglyphics literature links to Down syndrome. A child's record holds:
+
+- **Each fingertip:** the pattern (arch, ulnar loop, radial loop or whorl)
+  and its ridge count.
+- **Each palm:** the ATD angle, the a–b ridge count and the crease type
+  (normal, Sydney line, or single transverse "simian" crease).
+- **Each sole:** whether the big-toe area has a tibial arch.
+
+**Filling in a record**
+
+1. On the *Ridge count* tab, measure a finger (core and delta), then click
+   *Add to child record…*. Pick the hand and finger. The pattern is suggested
+   from the cores and deltas found; please check it. The ridge count is
+   filled in for you.
+2. For a palm, switch *Measure* to *Palm*. Click triradii **a**, **b**,
+   **d** and the axial triradius **t**. The window shows the a–b ridge
+   count, the ATD angle and the t / t′ / t″ position. Then click *Add to
+   child record…* and choose the crease type by eye.
+3. On the *Child record* tab, give the child an ID and the chromosome test
+   result (if known), fill in anything else by hand, and click **Save**.
+
+**What you get**
+
+- **A marker report** for every record. It lists each marker, what this
+  child shows, what the papers report in Down syndrome, and the source.
+  Only markers that are distinctive on their own are flagged: a distal
+  axial triradius (ATD angle above 56°, which can over-flag newborns), a
+  single transverse crease, a Sydney line, and a tibial arch on the sole.
+  Finger patterns and ridge counts are shown but not flagged. The reviews
+  give no cut-off for them, and these patterns are common in children
+  without Down syndrome.
+- **A trainable model** (Model tab). It learns only from records whose
+  chromosome test result is known. It refuses to train until there are at
+  least 20 children with Down syndrome and 20 without. When it does train,
+  it reports accuracy measured on children it wasn't trained on: how many
+  it caught, how many it wrongly flagged, with 95% ranges. Today there are
+  no Down syndrome records, so there is no trained model, and the window
+  says so instead of showing a made-up probability.
+
+Records are saved as files in `Documents\Ridge Counter Data` on your own
+computer and are never uploaded. *Export spreadsheet…* writes everything
+to one CSV. **Never commit real children's records or scans to this public
+repository.**
+
+**This is a research aid, not a diagnosis.** Many children without Down
+syndrome show some of these markers, and some children with Down syndrome
+show none. Down syndrome is confirmed with a chromosome test (karyotype).
+Prints from newborns need high resolution: their ridges are 2.5–3 times
+finer than adults', and published newborn studies used roughly
+1500–3600 dpi.
+
 ## Getting an accurate count
 
 - **Scan resolution.** Infant ridges are fine (about 0.3–0.4 mm apart), so scan
@@ -116,6 +170,15 @@ not a certified clinical device.
 python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
+
+The code is in two files: `ridge_counter.py` (image analysis, counting,
+window and command line) and `dermatoglyphics.py` (child records, the marker
+report and the model). Keep both in the same folder.
+
+The model tests in `tests/test_dermatoglyphics.py` use made-up labelled
+records only to check that training and evaluation work: that the model
+refuses too little data, learns a real difference, and doesn't look accurate
+on noise. They say nothing about real children.
 
 `tests/synthetic.py` generates the synthetic prints. Run
 `python -m tests.synthetic` to regenerate `sample_data/sample_loop.png`. The

@@ -12,7 +12,9 @@ SAMPLE = Path(__file__).resolve().parent.parent / "sample_data" / "sample_loop.p
 
 
 @pytest.fixture
-def app():
+def app(tmp_path, monkeypatch):
+    monkeypatch.setattr(rc, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(rc.dg, "default_data_folder", lambda: tmp_path / "data")
     try:
         root = tk.Tk()
     except tk.TclError as exc:
@@ -51,7 +53,7 @@ def click_image(app, x, y):
 
 def test_opening_a_scan_suggests_points_and_counts(app):
     open_sample(app)
-    assert app.sources == {"core": "auto", "delta": "auto"}
+    assert (app.sources["core"], app.sources["delta"]) == ("auto", "auto")
     assert app.count_text.get() == f"Ridge count: {app.result.count}"
     assert app.canvas.find_withtag("image") and app.canvas.find_withtag("overlay")
 
@@ -62,7 +64,7 @@ def test_click_to_place_both_points_then_drag(app):
     click_image(app, 165, 150)
     assert app.place_mode.get() == "delta"
     click_image(app, 95, 265)
-    assert app.sources == {"core": "manual", "delta": "manual"}
+    assert (app.sources["core"], app.sources["delta"]) == ("manual", "manual")
     assert abs(app.points["core"][0] - 165) <= 1 and abs(app.points["delta"][1] - 265) <= 1
     assert app.result.count == rc.count_between(app.analysis, app.points["core"], app.points["delta"]).count
 

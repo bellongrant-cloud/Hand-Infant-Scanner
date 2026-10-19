@@ -29,6 +29,11 @@ except ImportError:
     cv2 = None
 
 try:
+    import dermatoglyphics as dg  # child records and the model; must sit next to this file
+except ImportError:
+    dg = None
+
+try:
     import tkinter as tk
     import tkinter.font as tkfont
     from tkinter import filedialog, messagebox, ttk
@@ -477,6 +482,25 @@ def suggest_points(analysis: Analysis, core=None, delta=None):
     return ((first.x, first.y) if first else None), None
 
 
+def suggest_pattern(analysis: Analysis, core, delta=None, thumb_side: str = "left") -> str:
+    """Best guess at a fingertip pattern, for the person to confirm.
+
+    A second core within 20 ridge widths means a whorl. Otherwise a loop
+    opens away from its delta, and it is radial if it opens toward the
+    thumb side of the image, ulnar if toward the little finger.
+    """
+    if core is None:
+        return "unknown"
+    period = analysis.ridge_period
+    for other in analysis.cores:
+        if 2 * period < math.hypot(other.x - core[0], other.y - core[1]) <= 20 * period:
+            return "whorl"
+    if delta is None:
+        return "unknown"
+    opens_right = delta[0] < core[0]
+    return "radial loop" if opens_right == (thumb_side == "right") else "ulnar loop"
+
+
 def count_between(analysis: Analysis, core, delta) -> RidgeCount:
     return count_ridges(analysis.ridges, delta, core, analysis.ridge_period)
 
@@ -674,12 +698,29 @@ def main(argv=None) -> int:
 # Point-and-click window
 # ---------------------------------------------------------------------------
 
-POINT_COLORS = {"core": "#ff5252", "delta": "#e040fb"}
+POINT_COLORS = {"core": "#ff5252", "delta": "#e040fb", "a": "#ffab40", "b": "#ffab40", "d": "#ffab40", "t": "#40c4ff"}
+MODE_POINTS = {"finger": ("core", "delta"), "palm": ("a", "b", "d", "t")}
+POINT_LABELS = {"core": "Core", "delta": "Delta", "a": "a", "b": "b", "d": "d", "t": "t (axial)"}
 IMAGE_FILETYPES = [
     ("Scan images", "*.png *.bmp *.tif *.tiff *.jpg *.jpeg *.jp2 *.pgm *.webp"),
     ("All files", "*.*"),
 ]
 HELP_TEXT = "Left-click: place point   Drag a point: move it   Wheel: zoom   Right-drag: pan   F: fit"
+SETTINGS_FILE = Path.home() / ".ridge_counter_settings.json"
+
+
+def _typing(widget) -> bool:
+    return isinstance(widget, (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox, tk.Listbox))
+
+
+def _number(text: str, kind):
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return kind(float(text)) if kind is int else kind(text)
+    except ValueError:
+        return None
 
 
 class RidgeCounterApp:
@@ -690,8 +731,9 @@ class RidgeCounterApp:
         self.image_path = None
         self.analysis = None
         self.result = None
-        self.points = {"core": None, "delta": None}
-        self.sources = {"core": None, "delta": None}
+        self.atd = None
+        self.points = {name: None for names in MODE_POINTS.values() for name in names}
+        self.sources = dict(self.points)
         self.zoom = 1.0
         self.origin = (0.0, 0.0)  # image coordinates shown at the canvas's top-left
         self.user_moved_view = False
@@ -702,6 +744,7 @@ class RidgeCounterApp:
         self._photo = None
         self._jobs = queue.Queue()
 
+        self.measure = tk.StringVar(value="finger")
         self.place_mode = tk.StringVar(value="core")
         self.show_ridges = tk.BooleanVar(value=True)
         self.light_ridges = tk.BooleanVar(value=False)
@@ -710,68 +753,102 @@ class RidgeCounterApp:
         self.status_text = tk.StringVar(value="Open a scan to begin (Ctrl+O).")
 
         root.title(f"Ridge Counter {__version__}")
-        root.geometry("1100x820")
-        root.minsize(720, 520)
+        root.geometry("1200x860")
+        root.minsize(760, 560)
         root.report_callback_exception = self._report_error
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill="both", expand=True)
+        self.count_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.count_tab, text="Ridge count")
         self._build_ui()
+        self.records = None
+        if dg is not None:
+            self.records = RecordsUI(self)
+        else:
+            missing = ttk.Frame(self.notebook, padding=20)
+            ttk.Label(missing, text="Child records need dermatoglyphics.py in the same folder as ridge_counter.py.").pack()
+            self.notebook.add(missing, text="Child record")
         self._bind_events()
-        root.after(50, self._poll_jobs)
+        self._poll_id = root.after(50, self._poll_jobs)
+        root.bind("<Destroy>", lambda e: root.after_cancel(self._poll_id) if e.widget is root else None, add="+")
         if initial_image:
             root.after(200, lambda: self.open_image(initial_image))
 
     # -- layout ------------------------------------------------------------
 
     def _build_ui(self):
-        bar = ttk.Frame(self.root, padding=(8, 6))
+        tab = self.count_tab
+        bar = ttk.Frame(tab, padding=(8, 6))
         bar.pack(side="top", fill="x")
         self.controls = []
 
-        def button(text, command):
-            b = ttk.Button(bar, text=text, command=command)
+        def button(parent, text, command):
+            b = ttk.Button(parent, text=text, command=command)
             b.pack(side="left", padx=3)
             self.controls.append(b)
             return b
 
-        def separator():
-            ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=8)
+        def separator(parent):
+            ttk.Separator(parent, orient="vertical").pack(side="left", fill="y", padx=8)
 
-        button("Open scan…", self.open_dialog)
-        separator()
-        ttk.Label(bar, text="Click places:").pack(side="left", padx=(0, 4))
-        for value, label in (("core", "Core"), ("delta", "Delta")):
-            rb = ttk.Radiobutton(bar, text=label, value=value, variable=self.place_mode)
+        button(bar, "Open scan…", self.open_dialog)
+        separator(bar)
+        ttk.Label(bar, text="Measure:").pack(side="left", padx=(0, 4))
+        for value, label in (("finger", "Finger (core–delta)"), ("palm", "Palm (a, b, d, t)")):
+            rb = ttk.Radiobutton(bar, text=label, value=value, variable=self.measure, command=self._on_measure_changed)
             rb.pack(side="left", padx=2)
             self.controls.append(rb)
-        button("Auto-detect", self.auto_detect)
-        button("Clear points", self.clear_points)
-        separator()
+        separator(bar)
+        ttk.Label(bar, text="Click places:").pack(side="left", padx=(0, 4))
+        self.place_frame = ttk.Frame(bar)
+        self.place_frame.pack(side="left")
+        self._build_place_buttons()
+        separator(bar)
+        button(bar, "Auto-detect", self.auto_detect)
+        button(bar, "Clear points", self.clear_points)
+
+        bar2 = ttk.Frame(tab, padding=(8, 0, 8, 4))
+        bar2.pack(side="top", fill="x")
         for text, var, command in (
             ("Show ridges", self.show_ridges, self._on_show_ridges),
             ("Light ridges", self.light_ridges, self._on_light_ridges),
         ):
-            cb = ttk.Checkbutton(bar, text=text, variable=var, command=command)
+            cb = ttk.Checkbutton(bar2, text=text, variable=var, command=command)
             cb.pack(side="left", padx=3)
             self.controls.append(cb)
-        separator()
-        button("Fit", self.fit_view)
-        button("Save results…", self.save_dialog)
+        separator(bar2)
+        button(bar2, "Fit", self.fit_view)
+        button(bar2, "Save results…", self.save_dialog)
+        if dg is not None:
+            separator(bar2)
+            button(bar2, "Add to child record…", self.add_to_record)
 
-        header = ttk.Frame(self.root, padding=(12, 2))
+        header = ttk.Frame(tab, padding=(12, 2))
         header.pack(side="top", fill="x")
         big = tkfont.nametofont("TkDefaultFont").copy()
         big.configure(size=20, weight="bold")
         ttk.Label(header, textvariable=self.count_text, font=big).pack(side="left")
         ttk.Label(header, textvariable=self.detail_text, foreground="#555555").pack(side="left", padx=14)
 
-        ttk.Label(self.root, text=HELP_TEXT, foreground="#777777", padding=(10, 0, 8, 6)).pack(side="bottom", anchor="w")
-        footer = ttk.Frame(self.root, padding=(8, 2, 8, 0))
+        ttk.Label(tab, text=HELP_TEXT, foreground="#777777", padding=(10, 0, 8, 6)).pack(side="bottom", anchor="w")
+        footer = ttk.Frame(tab, padding=(8, 2, 8, 0))
         footer.pack(side="bottom", fill="x")
         self.progress = ttk.Progressbar(footer, mode="indeterminate", length=120)
         self.status_label = ttk.Label(footer, textvariable=self.status_text, anchor="w")
         self.status_label.pack(side="left", fill="x", expand=True)
 
-        self.canvas = tk.Canvas(self.root, background="#1e1e1e", highlightthickness=0, cursor="crosshair")
+        self.canvas = tk.Canvas(tab, background="#1e1e1e", highlightthickness=0, cursor="crosshair")
         self.canvas.pack(side="top", fill="both", expand=True, padx=8, pady=4)
+
+    def _build_place_buttons(self):
+        for child in self.place_frame.winfo_children():
+            if child in self.controls:
+                self.controls.remove(child)
+            child.destroy()
+        for name in MODE_POINTS[self.measure.get()]:
+            rb = ttk.Radiobutton(self.place_frame, text=POINT_LABELS[name], value=name, variable=self.place_mode)
+            rb.pack(side="left", padx=2)
+            self.controls.append(rb)
 
     def _bind_events(self):
         c = self.canvas
@@ -785,15 +862,25 @@ class RidgeCounterApp:
         c.bind("<MouseWheel>", lambda e: self._zoom_at(e.x, e.y, 1.25 if e.delta > 0 else 0.8))
         c.bind("<Button-4>", lambda e: self._zoom_at(e.x, e.y, 1.25))
         c.bind("<Button-5>", lambda e: self._zoom_at(e.x, e.y, 0.8))
+
+        def on_count_tab(action):
+            def handler(event):
+                if self.notebook.select() == str(self.count_tab) and not _typing(event.widget):
+                    action()
+            return handler
+
+        def choose(name):
+            return lambda: self.place_mode.set(name) if name in MODE_POINTS[self.measure.get()] else None
+
         r = self.root
         r.bind("<Control-o>", lambda e: self.open_dialog())
-        r.bind("<Control-s>", lambda e: self.save_dialog())
-        r.bind("<Key-f>", lambda e: self.fit_view())
-        r.bind("<Key-c>", lambda e: self.place_mode.set("core"))
-        r.bind("<Key-d>", lambda e: self.place_mode.set("delta"))
-        r.bind("<Key-plus>", lambda e: self._zoom_center(1.25))
-        r.bind("<Key-equal>", lambda e: self._zoom_center(1.25))
-        r.bind("<Key-minus>", lambda e: self._zoom_center(0.8))
+        r.bind("<Control-s>", lambda e: self.records.save() if self.records and self.notebook.select() != str(self.count_tab) else self.save_dialog())
+        r.bind("<Key-f>", on_count_tab(self.fit_view))
+        r.bind("<Key-c>", on_count_tab(choose("core")))
+        r.bind("<Key-d>", on_count_tab(lambda: self.place_mode.set("delta" if self.measure.get() == "finger" else "d")))
+        r.bind("<Key-plus>", on_count_tab(lambda: self._zoom_center(1.25)))
+        r.bind("<Key-equal>", on_count_tab(lambda: self._zoom_center(1.25)))
+        r.bind("<Key-minus>", on_count_tab(lambda: self._zoom_center(0.8)))
 
     # -- background work ---------------------------------------------------
 
@@ -830,7 +917,7 @@ class RidgeCounterApp:
         except queue.Empty:
             pass
         finally:
-            self.root.after(50, self._poll_jobs)
+            self._poll_id = self.root.after(50, self._poll_jobs)
 
     # -- opening and analysis ---------------------------------------------
 
@@ -839,6 +926,7 @@ class RidgeCounterApp:
             return
         path = filedialog.askopenfilename(parent=self.root, title="Open a fingerprint or palm scan", filetypes=IMAGE_FILETYPES)
         if path:
+            self.notebook.select(self.count_tab)
             self.open_image(path)
 
     def open_image(self, path, keep_points=False):
@@ -856,6 +944,8 @@ class RidgeCounterApp:
         self._base_cache = None
         self.root.title(f"Ridge Counter – {Path(path).name}")
         if new_image or not keep_points:
+            for name in MODE_POINTS["palm"]:
+                self.points[name] = self.sources[name] = None
             self._apply_auto_points()
         if new_image:
             self.user_moved_view = False
@@ -873,21 +963,25 @@ class RidgeCounterApp:
         self.status_text.set(message)
 
     def _apply_auto_points(self, keep_manual=False):
-        kept = {n: p for n, p in self.points.items() if keep_manual and self.sources[n] == "manual"}
+        kept = {n: self.points[n] for n in ("core", "delta") if keep_manual and self.sources[n] == "manual"}
         core, delta = suggest_points(self.analysis, kept.get("core"), kept.get("delta"))
         for name, point in (("core", core), ("delta", delta)):
             if name not in kept:
                 self.points[name], self.sources[name] = point, ("auto" if point else None)
-        self.place_mode.set("core" if self.points["core"] is None or self.points["delta"] is not None else "delta")
+        if self.measure.get() == "finger":
+            self.place_mode.set("core" if self.points["core"] is None or self.points["delta"] is not None else "delta")
 
     def auto_detect(self):
         if self.analysis is None or self.busy:
+            return
+        if self.measure.get() == "palm":
+            self.status_text.set("Palm triradii are placed by hand: click a, b, d and the axial triradius t.")
             return
         manual = [n for n in ("core", "delta") if self.sources[n] == "manual"]
         self._apply_auto_points(keep_manual=len(manual) == 1)
         self._recount()
         self._redraw(image_layer=False)
-        if None in self.points.values():
+        if None in (self.points["core"], self.points["delta"]):
             self.status_text.set("Auto-detect couldn't find both points here — click on the image to place them.")
         elif len(manual) == 1:
             other = "delta" if manual[0] == "core" else "core"
@@ -896,9 +990,20 @@ class RidgeCounterApp:
             self.status_text.set("Points reset to the automatic suggestions.")
 
     def clear_points(self):
-        self.points = {"core": None, "delta": None}
-        self.sources = {"core": None, "delta": None}
-        self.place_mode.set("core")
+        names = MODE_POINTS[self.measure.get()]
+        for name in names:
+            self.points[name] = self.sources[name] = None
+        self.place_mode.set(names[0])
+        self._recount()
+        self._redraw(image_layer=False)
+
+    def _on_measure_changed(self):
+        names = MODE_POINTS[self.measure.get()]
+        self._build_place_buttons()
+        self.place_mode.set(next((n for n in names if self.points[n] is None), names[0]))
+        if self.measure.get() == "palm":
+            self.status_text.set("Palm: click triradii a and b (below the index and middle fingers), d (below the "
+                                 "little finger) and the axial triradius t (near the wrist).")
         self._recount()
         self._redraw(image_layer=False)
 
@@ -913,19 +1018,37 @@ class RidgeCounterApp:
     # -- counting ----------------------------------------------------------
 
     def _recount(self):
-        core, delta = self.points["core"], self.points["delta"]
-        if self.analysis is not None and core and delta:
-            self.result = count_between(self.analysis, core, delta)
-            self.count_text.set(f"Ridge count: {self.result.count}")
-            detail = "ridges between delta and core (ridges the points sit on are not counted)"
-            if "auto" in self.sources.values():
-                detail += " · auto-detected points: please check"
-            self.detail_text.set(detail)
-        else:
-            self.result = None
+        self.result, self.atd = None, None
+        if self.analysis is None:
             self.count_text.set("Ridge count: –")
-            missing = [n for n in ("core", "delta") if self.points[n] is None]
-            self.detail_text.set(f"Click on the image to place the {' and '.join(missing)}." if self.analysis else "")
+            self.detail_text.set("")
+            return
+        p = self.points
+        if self.measure.get() == "finger":
+            if p["core"] and p["delta"]:
+                self.result = count_between(self.analysis, p["core"], p["delta"])
+                self.count_text.set(f"Ridge count: {self.result.count}")
+                detail = "ridges between delta and core (ridges the points sit on are not counted)"
+                if "auto" in (self.sources["core"], self.sources["delta"]):
+                    detail += " · auto-detected points: please check"
+                self.detail_text.set(detail)
+            else:
+                self.count_text.set("Ridge count: –")
+                missing = [n for n in ("core", "delta") if p[n] is None]
+                self.detail_text.set(f"Click on the image to place the {' and '.join(missing)}.")
+            return
+        parts = []
+        if p["a"] and p["b"]:
+            self.result = count_ridges(self.analysis.ridges, p["a"], p["b"], self.analysis.ridge_period)
+            parts.append(f"a–b ridge count: {self.result.count}")
+        if p["a"] and p["d"] and p["t"] and len({p["a"], p["d"], p["t"]}) == 3:
+            self.atd = dg.atd_angle(p["a"], p["t"], p["d"]) if dg else None
+            if self.atd is not None:
+                parts.append(f"ATD angle: {self.atd:.0f}°")
+        self.count_text.set("   ".join(parts) if parts else "Palm: –")
+        missing = [POINT_LABELS[n] for n in MODE_POINTS["palm"] if p[n] is None]
+        self.detail_text.set(f"Still to place: {', '.join(missing)}" if missing else
+                             (dg.axial_triradius_position(self.atd) if dg and self.atd is not None else ""))
 
     # -- view geometry -------------------------------------------------------
 
@@ -982,7 +1105,8 @@ class RidgeCounterApp:
 
     def _point_under(self, cx, cy):
         best = None
-        for name, point in self.points.items():
+        for name in MODE_POINTS[self.measure.get()]:
+            point = self.points[name]
             if point is None:
                 continue
             px, py = self._to_canvas(*point)
@@ -998,9 +1122,10 @@ class RidgeCounterApp:
         if name is None:
             name = self.place_mode.get()
             self._move_point(name, event.x, event.y)
-            other = "delta" if name == "core" else "core"
-            if self.points[other] is None:
-                self.place_mode.set(other)
+            names = MODE_POINTS[self.measure.get()]
+            missing = [n for n in names[names.index(name) + 1:] + names[:names.index(name)] if self.points[n] is None]
+            if missing:
+                self.place_mode.set(missing[0])
         self.dragging = name
 
     def _on_drag(self, event):
@@ -1008,7 +1133,7 @@ class RidgeCounterApp:
             self._move_point(self.dragging, event.x, event.y)
 
     def _on_release(self, event):
-        if self.dragging and self.result is not None:
+        if self.dragging and self.result is not None and self.measure.get() == "finger":
             self.status_text.set(f"Core at {self.points['core']}, delta at {self.points['delta']}.")
         self.dragging = None
 
@@ -1073,9 +1198,17 @@ class RidgeCounterApp:
 
     def _draw_overlay(self):
         c = self.canvas
-        core, delta = self.points["core"], self.points["delta"]
-        if core and delta:
-            c.create_line(*self._to_canvas(*delta), *self._to_canvas(*core), fill="#ffd400", width=2, tags="overlay")
+        p = self.points
+        if self.measure.get() == "finger":
+            line = (p["delta"], p["core"])
+        else:
+            line = (p["a"], p["b"])
+            for end in ("a", "d"):
+                if p["t"] and p[end]:
+                    c.create_line(*self._to_canvas(*p["t"]), *self._to_canvas(*p[end]),
+                                  fill="#40c4ff", width=2, dash=(6, 4), tags="overlay")
+        if line[0] and line[1]:
+            c.create_line(*self._to_canvas(*line[0]), *self._to_canvas(*line[1]), fill="#ffd400", width=2, tags="overlay")
         if self.result is not None:
             for x, y in self.result.excluded:
                 cx, cy = self._to_canvas(x, y)
@@ -1084,7 +1217,8 @@ class RidgeCounterApp:
                 cx, cy = self._to_canvas(x, y)
                 c.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill="#00e676", outline="#00391a", tags="overlay")
                 self._label(cx + 9, cy - 9, str(i), "#00e676", "w")
-        for name, point in self.points.items():
+        for name in MODE_POINTS[self.measure.get()]:
+            point = p[name]
             if point is None:
                 continue
             cx, cy = self._to_canvas(*point)
@@ -1094,13 +1228,16 @@ class RidgeCounterApp:
             c.create_line(cx + 4, cy, cx + 14, cy, fill=color, width=2, tags="overlay")
             c.create_line(cx, cy - 14, cx, cy - 4, fill=color, width=2, tags="overlay")
             c.create_line(cx, cy + 4, cx, cy + 14, fill=color, width=2, tags="overlay")
-            label = name.capitalize() + (" (auto)" if self.sources[name] == "auto" else "")
+            label = POINT_LABELS[name] + (" (auto)" if self.sources[name] == "auto" else "")
             self._label(cx + 14, cy + 14, label, color, "nw")
 
     # -- saving ------------------------------------------------------------
 
     def save_dialog(self):
         if self.busy or self.analysis is None:
+            return
+        if self.measure.get() == "palm":
+            self.status_text.set("Palm measurements are kept with the child record: use “Add to child record…”.")
             return
         if self.result is None:
             self.status_text.set("Place both the core and the delta before saving.")
@@ -1122,9 +1259,402 @@ class RidgeCounterApp:
             f"Saved {saved.annotated.name} and {saved.report.name}, and added a row to {saved.log.name} in {saved.log.parent}"
         )
 
+    def add_to_record(self):
+        if self.analysis is None or self.busy or self.records is None:
+            self.status_text.set("Open a scan and measure something first.")
+            return
+        if self.measure.get() == "finger":
+            AddFingerDialog(self)
+        else:
+            AddPalmDialog(self)
+
     def _report_error(self, exc_type, exc, tb):
         details = "".join(traceback.format_exception(exc_type, exc, tb))
         messagebox.showerror("Something went wrong", f"{exc}\n\nDetails:\n{details[-1500:]}", parent=self.root)
+
+
+class _Dialog:
+    """Small modal form; subclasses fill `body` and implement `apply`."""
+
+    def __init__(self, app, title):
+        self.app = app
+        self.top = tk.Toplevel(app.root)
+        self.top.title(title)
+        self.top.transient(app.root)
+        self.top.resizable(False, False)
+        self.body = ttk.Frame(self.top, padding=14)
+        self.body.pack(fill="both", expand=True)
+        self.row = 0
+
+    def field(self, label, widget):
+        ttk.Label(self.body, text=label).grid(row=self.row, column=0, sticky="w", pady=3, padx=(0, 10))
+        widget.grid(row=self.row, column=1, sticky="we", pady=3)
+        self.row += 1
+        return widget
+
+    def combo(self, label, values, value):
+        var = tk.StringVar(value=value)
+        self.field(label, ttk.Combobox(self.body, textvariable=var, values=values, state="readonly", width=34))
+        return var
+
+    def entry(self, label, value):
+        var = tk.StringVar(value=value)
+        self.field(label, ttk.Entry(self.body, textvariable=var, width=36))
+        return var
+
+    def finish(self, note=""):
+        if note:
+            ttk.Label(self.body, text=note, foreground="#666666", wraplength=380, justify="left").grid(
+                row=self.row, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.row += 1
+        buttons = ttk.Frame(self.body)
+        buttons.grid(row=self.row, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Cancel", command=self.top.destroy).pack(side="right")
+        ttk.Button(buttons, text="Add", command=self._ok).pack(side="right", padx=(0, 8))
+        self.top.bind("<Return>", lambda e: self._ok())
+        self.top.bind("<Escape>", lambda e: self.top.destroy())
+        self.top.grab_set()
+
+    def _ok(self):
+        message = self.apply()
+        self.top.destroy()
+        self.app.status_text.set(message)
+
+
+class AddFingerDialog(_Dialog):
+    def __init__(self, app):
+        super().__init__(app, "Add finger to child record")
+        self.hand = self.combo("Hand", dg.HANDS, "right")
+        self.finger = self.combo("Finger", dg.FINGERS, "index")
+        self.thumb_side = self.combo("In this image the thumb side is", ("left", "right"), "left")
+        self.pattern = self.combo("Pattern", dg.PATTERNS, "unknown")
+        count = app.result.count if app.result is not None else ""
+        self.count = self.entry("Ridge count (larger one for a whorl)", str(count))
+        self.hand.trace_add("write", lambda *a: self.thumb_side.set("left" if self.hand.get() == "right" else "right"))
+        self.thumb_side.trace_add("write", lambda *a: self._suggest())
+        self._suggest()
+        self.finish("The pattern is a suggestion from the cores and deltas found near your core point - please check it. "
+                    "Thumb side: on an ink or scanner print of a right hand the thumb is usually on the left.")
+
+    def _suggest(self):
+        p = self.app.points
+        guess = suggest_pattern(self.app.analysis, p["core"], p["delta"], self.thumb_side.get())
+        self.pattern.set(guess)
+
+    def apply(self):
+        key = f"{self.hand.get()} {self.finger.get()}"
+        pattern = self.pattern.get()
+        count = 0 if pattern == "arch" else _number(self.count.get(), int)
+        self.app.records.set_finger(key, pattern, count, self.app.image_path)
+        return f"Added {key}: {pattern}, ridge count {'–' if count is None else count}. Save the record in the Child record tab."
+
+
+class AddPalmDialog(_Dialog):
+    def __init__(self, app):
+        super().__init__(app, "Add palm to child record")
+        self.hand = self.combo("Hand", dg.HANDS, "right")
+        atd = f"{app.atd:.1f}" if app.atd is not None else ""
+        ab = str(app.result.count) if app.result is not None else ""
+        self.atd = self.entry("ATD angle (degrees)", atd)
+        self.ab = self.entry("a–b ridge count", ab)
+        self.crease = self.combo("Palm crease", dg.CREASES, "unknown")
+        self.finish("Palm creases are judged by eye: a single transverse (simian) crease runs right across the palm; "
+                    "a Sydney line is the proximal crease reaching the edge of the palm.")
+
+    def apply(self):
+        hand = self.hand.get()
+        self.app.records.set_palm(hand, _number(self.atd.get(), float), _number(self.ab.get(), int),
+                                  self.crease.get(), self.app.image_path)
+        return f"Added {hand} palm. Save the record in the Child record tab."
+
+
+class RecordsUI:
+    """The Child record and Model tabs."""
+
+    def __init__(self, app):
+        self.app = app
+        self.store = dg.RecordStore(self._load_folder())
+        self.model = self._load_model()
+        self.record = dg.ChildRecord("")
+        self.dirty = False
+        self._loading = False
+        self._build_record_tab()
+        self._build_model_tab()
+        self._show(self.record)
+        self.refresh_model_tab()
+
+    # -- settings & storage --------------------------------------------------
+
+    @staticmethod
+    def _load_folder():
+        try:
+            return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))["data_folder"]
+        except (OSError, ValueError, KeyError):
+            return dg.default_data_folder()
+
+    def _load_model(self):
+        try:
+            return self.store.load_model()
+        except (OSError, ValueError, TypeError, KeyError):
+            return None
+
+    # -- record tab ----------------------------------------------------------
+
+    def _build_record_tab(self):
+        tab = ttk.Frame(self.app.notebook, padding=10)
+        self.app.notebook.add(tab, text="Child record")
+        self.vars = []
+
+        def var(value=""):
+            v = tk.StringVar(value=value)
+            v.trace_add("write", lambda *a: self._changed())
+            self.vars.append(v)
+            return v
+
+        top = ttk.Frame(tab)
+        top.pack(fill="x")
+        self.child_id = var()
+        self.label = var(dg.LABEL_UNKNOWN)
+        self.sex = var("unknown")
+        ttk.Label(top, text="Child ID").pack(side="left")
+        self.id_entry = ttk.Entry(top, textvariable=self.child_id, width=18)
+        self.id_entry.pack(side="left", padx=(4, 12))
+        ttk.Label(top, text="Chromosome test result").pack(side="left")
+        ttk.Combobox(top, textvariable=self.label, values=dg.LABELS, state="readonly", width=32).pack(side="left", padx=(4, 12))
+        ttk.Label(top, text="Sex").pack(side="left")
+        ttk.Combobox(top, textvariable=self.sex, values=dg.SEXES, state="readonly", width=9).pack(side="left", padx=(4, 12))
+        for text, command in (("Save", self.save), ("Open…", self.open), ("New", self.new)):
+            ttk.Button(top, text=text, command=command).pack(side="right", padx=3)
+        self.title = tk.StringVar()
+        ttk.Label(tab, textvariable=self.title, foreground="#555555").pack(anchor="w", pady=(4, 6))
+
+        body = ttk.Frame(tab)
+        body.pack(fill="both", expand=True)
+        form = ttk.Frame(body)
+        form.pack(side="left", fill="y", padx=(0, 12))
+
+        fingers = ttk.LabelFrame(form, text="Fingertips", padding=8)
+        fingers.pack(fill="x")
+        for col, text in enumerate(("", "Right hand", "ridges", "Left hand", "ridges")):
+            ttk.Label(fingers, text=text, foreground="#555555").grid(row=0, column=col, sticky="w", padx=3)
+        self.finger_vars = {}
+        for row, finger in enumerate(dg.FINGERS, start=1):
+            ttk.Label(fingers, text=finger.capitalize()).grid(row=row, column=0, sticky="w", padx=3, pady=2)
+            for i, hand in enumerate(dg.HANDS):
+                pattern, count = var("unknown"), var()
+                ttk.Combobox(fingers, textvariable=pattern, values=dg.PATTERNS, state="readonly", width=12).grid(
+                    row=row, column=1 + 2 * i, padx=3, pady=2)
+                ttk.Entry(fingers, textvariable=count, width=5).grid(row=row, column=2 + 2 * i, padx=3, pady=2)
+                self.finger_vars[f"{hand} {finger}"] = (pattern, count)
+
+        palms = ttk.LabelFrame(form, text="Palms", padding=8)
+        palms.pack(fill="x", pady=8)
+        for col, text in enumerate(("", "Crease", "ATD°", "a–b")):
+            ttk.Label(palms, text=text, foreground="#555555").grid(row=0, column=col, sticky="w", padx=3)
+        self.palm_vars = {}
+        for row, hand in enumerate(dg.HANDS, start=1):
+            crease, atd, ab = var("unknown"), var(), var()
+            ttk.Label(palms, text=hand.capitalize()).grid(row=row, column=0, sticky="w", padx=3, pady=2)
+            ttk.Combobox(palms, textvariable=crease, values=dg.CREASES, state="readonly", width=26).grid(row=row, column=1, padx=3)
+            ttk.Entry(palms, textvariable=atd, width=6).grid(row=row, column=2, padx=3)
+            ttk.Entry(palms, textvariable=ab, width=5).grid(row=row, column=3, padx=3)
+            self.palm_vars[hand] = (crease, atd, ab)
+
+        soles = ttk.LabelFrame(form, text="Soles (big-toe area)", padding=8)
+        soles.pack(fill="x")
+        self.foot_vars = {}
+        for row, foot in enumerate(dg.HANDS):
+            v = var("unknown")
+            ttk.Label(soles, text=f"{foot.capitalize()} foot").grid(row=row, column=0, sticky="w", padx=3, pady=2)
+            ttk.Combobox(soles, textvariable=v, values=dg.HALLUCAL, state="readonly", width=14).grid(row=row, column=1, padx=3)
+            self.foot_vars[foot] = v
+
+        notes = ttk.LabelFrame(form, text="Notes", padding=8)
+        notes.pack(fill="x", pady=8)
+        self.notes = var()
+        ttk.Entry(notes, textvariable=self.notes, width=48).pack(fill="x")
+
+        report = ttk.LabelFrame(body, text="Assessment (research aid - not a diagnosis)", padding=8)
+        report.pack(side="left", fill="both", expand=True)
+        self.report = tk.Text(report, wrap="word", height=20, relief="flat", background="#fafafa")
+        self.report.pack(fill="both", expand=True)
+        self.report.configure(state="disabled")
+
+    def _show(self, record):
+        self._loading = True
+        self.child_id.set(record.child_id)
+        self.label.set(record.label)
+        self.sex.set(record.sex)
+        self.notes.set(record.notes)
+        for key, (pattern, count) in self.finger_vars.items():
+            finger = record.fingers[key]
+            pattern.set(finger.pattern)
+            count.set("" if finger.ridge_count is None else str(finger.ridge_count))
+        for hand, (crease, atd, ab) in self.palm_vars.items():
+            palm = record.palms[hand]
+            crease.set(palm.crease)
+            atd.set("" if palm.atd_angle is None else f"{palm.atd_angle:g}")
+            ab.set("" if palm.ab_ridge_count is None else str(palm.ab_ridge_count))
+        for foot, v in self.foot_vars.items():
+            v.set(record.feet[foot].hallucal)
+        self._loading = False
+        self._changed(dirty=False)
+
+    def _read_form(self):
+        r = self.record
+        r.child_id = self.child_id.get().strip()
+        r.label, r.sex, r.notes = self.label.get(), self.sex.get(), self.notes.get()
+        for key, (pattern, count) in self.finger_vars.items():
+            r.fingers[key] = dg.Finger(pattern.get(), _number(count.get(), int))
+        for hand, (crease, atd, ab) in self.palm_vars.items():
+            r.palms[hand] = dg.Palm(crease.get(), _number(atd.get(), float), _number(ab.get(), int))
+        for foot, v in self.foot_vars.items():
+            r.feet[foot] = dg.Foot(v.get())
+
+    def _changed(self, dirty=True):
+        if self._loading:
+            return
+        self._read_form()
+        self.dirty = self.dirty or dirty
+        name = self.record.child_id or "new child (no ID yet)"
+        self.title.set(f"{name}{'  •  unsaved changes' if self.dirty else ''}"
+                       f"{'  •  scans: ' + ', '.join(self.record.scans) if self.record.scans else ''}")
+        text = dg.assess(self.record, self.model, self.store.counts())
+        self.report.configure(state="normal")
+        self.report.delete("1.0", "end")
+        self.report.insert("end", text)
+        self.report.configure(state="disabled")
+
+    def _note_scan(self, path):
+        if path and Path(path).name not in self.record.scans:
+            self.record.scans.append(Path(path).name)
+
+    def set_finger(self, key, pattern, count, scan):
+        self._note_scan(scan)
+        pattern_var, count_var = self.finger_vars[key]
+        pattern_var.set(pattern)
+        count_var.set("" if count is None else str(count))
+
+    def set_palm(self, hand, atd, ab, crease, scan):
+        self._note_scan(scan)
+        crease_var, atd_var, ab_var = self.palm_vars[hand]
+        if atd is not None:
+            atd_var.set(f"{atd:.1f}")
+        if ab is not None:
+            ab_var.set(str(ab))
+        if crease != "unknown":
+            crease_var.set(crease)
+
+    def _discard_ok(self):
+        return not self.dirty or messagebox.askyesno(
+            "Unsaved changes", "This child's record has unsaved changes. Discard them?", parent=self.app.root)
+
+    def new(self):
+        if self._discard_ok():
+            self.record = dg.ChildRecord("")
+            self.dirty = False
+            self._show(self.record)
+
+    def open(self):
+        if not self._discard_ok():
+            return
+        path = filedialog.askopenfilename(parent=self.app.root, title="Open a child record",
+                                          initialdir=str(self.store.children), filetypes=[("Child records", "*.json")])
+        if not path:
+            return
+        try:
+            self.record = dg.ChildRecord.from_json(json.loads(Path(path).read_text(encoding="utf-8")))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            messagebox.showerror("Couldn't open the record", str(exc), parent=self.app.root)
+            return
+        self.dirty = False
+        self._show(self.record)
+        self.app.notebook.select(self.app.notebook.tabs()[1])
+
+    def save(self):
+        self._read_form()
+        try:
+            path = self.store.save(self.record)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Couldn't save the record", str(exc), parent=self.app.root)
+            return
+        self.dirty = False
+        self._changed(dirty=False)
+        self.refresh_model_tab()
+        self.app.status_text.set(f"Saved {path}")
+
+    # -- model tab -----------------------------------------------------------
+
+    def _build_model_tab(self):
+        tab = ttk.Frame(self.app.notebook, padding=10)
+        self.app.notebook.add(tab, text="Model")
+        buttons = ttk.Frame(tab)
+        buttons.pack(fill="x")
+        for text, command in (("Train model", self.train), ("Export spreadsheet…", self.export),
+                              ("Open data folder", self.open_folder), ("Change data folder…", self.change_folder)):
+            ttk.Button(buttons, text=text, command=command).pack(side="left", padx=3)
+        self.model_text = tk.Text(tab, wrap="word", relief="flat", background="#fafafa")
+        self.model_text.pack(fill="both", expand=True, pady=(8, 0))
+
+    def refresh_model_tab(self):
+        counts = self.store.counts()
+        text = (
+            f"Data folder (stays on this computer): {self.store.folder}\n"
+            f"Saved child records: {counts['with_ds']} with Down syndrome (confirmed), "
+            f"{counts['without_ds']} without (confirmed), {counts['unknown']} not tested.\n\n"
+            f"{dg.describe_model(self.model, counts)}\n\n"
+            "How the model works: it learns from saved records whose chromosome test result is known, using "
+            "the finger patterns, total ridge count, ATD angle, a–b ridge count, palm creases and sole pattern. "
+            f"It needs at least {dg.MIN_PER_GROUP} children in each group before it will train, and it reports "
+            "how it did on children it was not trained on. Records with no test result are never used for training.\n\n"
+            + dg.DISCLAIMER
+        )
+        self.model_text.configure(state="normal")
+        self.model_text.delete("1.0", "end")
+        self.model_text.insert("end", text)
+        self.model_text.configure(state="disabled")
+
+    def train(self):
+        try:
+            self.model = dg.train(self.store.all())
+        except dg.NotEnoughData as exc:
+            messagebox.showinfo("Not enough data yet", str(exc), parent=self.app.root)
+            return
+        self.store.save_model(self.model)
+        self.refresh_model_tab()
+        self._changed(dirty=False)
+
+    def export(self):
+        path = filedialog.asksaveasfilename(parent=self.app.root, title="Export all records as a spreadsheet",
+                                            defaultextension=".csv", initialfile="child_records.csv",
+                                            filetypes=[("CSV spreadsheet", "*.csv")])
+        if path:
+            try:
+                self.store.export_csv(path)
+            except OSError as exc:
+                messagebox.showerror("Couldn't export", str(exc), parent=self.app.root)
+                return
+            self.app.status_text.set(f"Exported {path}")
+
+    def open_folder(self):
+        folder = str(self.store.folder)
+        if sys.platform == "win32":
+            os.startfile(folder)
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", folder])
+
+    def change_folder(self):
+        folder = filedialog.askdirectory(parent=self.app.root, title="Choose the folder for child records")
+        if not folder:
+            return
+        self.store = dg.RecordStore(folder)
+        self.model = self._load_model()
+        try:
+            SETTINGS_FILE.write_text(json.dumps({"data_folder": folder}), encoding="utf-8")
+        except OSError:
+            pass  # the change still applies for this session
+        self.refresh_model_tab()
+        self._changed(dirty=False)
 
 
 # ---------------------------------------------------------------------------
