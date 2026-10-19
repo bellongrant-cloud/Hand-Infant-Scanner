@@ -46,6 +46,13 @@ Keyboard: Ctrl+O to open, Ctrl+S to save, C or D to choose core or delta,
 - **The endpoint rule.** A ridge isn't counted if the core or delta sits on it.
   Whether a point counts as "on" a ridge can change the total by one, so zoom in
   when you place points and check the grey rings.
+- **The delta has to be in the print.** Flat (un-rolled) prints often stop
+  short of the deltas at the lower corners of the fingertip. Without a
+  delta, there's no ridge count. Roll the finger from nail edge to nail edge
+  if you can. A whorl has two deltas; count each side separately.
+- **Whole-hand scans.** Auto-detect pairs each delta with the nearest core
+  on the same finger. To count a particular finger, click its core and then
+  press *Auto-detect*. It keeps your point and finds that finger's delta.
 - **Light ridges.** If your scanner shows ridges as light lines on a dark
   background, tick *Light ridges*.
 - **Blue overlay.** The blue tint shows exactly what the program treated as

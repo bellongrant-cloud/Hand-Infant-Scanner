@@ -51,12 +51,26 @@ CSV_FIELDS = (
 # ---------------------------------------------------------------------------
 
 def read_image(path) -> np.ndarray:
-    """Read a scan as 8-bit grayscale. Works with non-ASCII Windows paths."""
+    """Read a scan as 8-bit grayscale. Works with non-ASCII Windows paths.
+
+    Transparent areas are treated as white paper: exported prints often
+    store the gaps between ridges as transparent black pixels.
+    """
     data = np.fromfile(str(path), dtype=np.uint8)
-    image = cv2.imdecode(data, cv2.IMREAD_GRAYSCALE) if data.size else None
+    image = cv2.imdecode(data, cv2.IMREAD_UNCHANGED) if data.size else None
     if image is None:
         raise ValueError(f"Could not read {Path(path).name} as an image.")
-    return image
+    if image.dtype != np.uint8:
+        image = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    if image.ndim == 2:
+        return image
+    if image.shape[2] == 4:
+        alpha = image[:, :, 3:4].astype(np.float32) / 255.0
+        image = (image[:, :, :3] * alpha + 255.0 * (1.0 - alpha)).astype(np.uint8)
+    elif image.shape[2] == 2:
+        alpha = image[:, :, 1].astype(np.float32) / 255.0
+        return (image[:, :, 0] * alpha + 255.0 * (1.0 - alpha)).astype(np.uint8)
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 
 def write_image(path, image: np.ndarray) -> None:
@@ -130,9 +144,10 @@ def texture_mask(image: np.ndarray, period: float) -> np.ndarray:
     sigma = max(period, 4.0)
     mean = _blur(image, sigma)
     std = np.sqrt(np.maximum(_blur(image * image, sigma) - mean * mean, 0.0))
-    level = float(np.percentile(std, 95))
-    if level < 1e-3:
+    textured = std[std > 1.0]  # the print may cover only a few % of a mostly blank scan
+    if textured.size == 0:
         return np.zeros(image.shape, bool)
+    level = float(np.percentile(textured, 95))
     return _clean_mask(std > 0.3 * level, period)
 
 
@@ -153,7 +168,7 @@ def estimate_ridge_period(norm: np.ndarray, mask: np.ndarray) -> float:
     """Dominant ridge-to-ridge spacing in pixels, from averaged tile spectra."""
     h, w = norm.shape
     tile = 32
-    while tile * 2 <= min(h, w) and tile < 256:
+    while tile * 2 <= min(h, w) and tile < 128:  # small tiles fit inside small prints
         tile *= 2
     step = tile // 2
     tiles = [
@@ -167,13 +182,15 @@ def estimate_ridge_period(norm: np.ndarray, mask: np.ndarray) -> float:
     window = np.outer(np.hanning(tile), np.hanning(tile)).astype(np.float32)
     power = np.zeros((tile, tile))
     for coverage, y, x in tiles:
-        if coverage >= min(0.8, best):
+        if coverage >= min(0.9, best):
             spectrum = np.fft.fft2(norm[y:y + tile, x:x + tile] * window)
             power += spectrum.real ** 2 + spectrum.imag ** 2
 
     freqs = np.fft.fftfreq(tile)
     radius = np.rint(np.hypot(freqs[None, :], freqs[:, None]) * tile).astype(int).ravel()
     profile = np.bincount(radius, weights=power.ravel()) / np.maximum(np.bincount(radius), 1)
+    # Weighting by frequency flattens the broad low-frequency hump from blotchy ink.
+    profile = profile * np.arange(len(profile))
     lo = max(1, int(math.floor(tile / MAX_PERIOD)))
     hi = min(len(profile) - 2, int(math.ceil(tile / MIN_PERIOD)))
     # Take the strongest interior peak: large-scale shading makes the
@@ -321,6 +338,28 @@ def find_singular_points(orientation, coherence, mask, period):
     return cores, deltas
 
 
+def snap_to_ridge(ridges: np.ndarray, point, reach: float):
+    """Move a point onto the nearest ridge pixel within `reach` px.
+
+    By definition the core and the delta sit on a ridge, and that ridge is
+    not counted. Detected singular points land on the pattern's centre,
+    which can be a pixel or two into the neighbouring valley; snapping
+    keeps the endpoint rule from adding that ridge to the count.
+    """
+    x, y = point
+    h, w = ridges.shape
+    if not (0 <= x < w and 0 <= y < h) or ridges[y, x]:
+        return point
+    r = int(math.ceil(reach))
+    y0, y1, x0, x1 = max(0, y - r), min(h, y + r + 1), max(0, x - r), min(w, x + r + 1)
+    ys, xs = np.nonzero(ridges[y0:y1, x0:x1])
+    if ys.size == 0:
+        return point
+    distance = np.hypot(xs + x0 - x, ys + y0 - y)
+    i = int(np.argmin(distance))
+    return point if distance[i] > reach else (int(xs[i] + x0), int(ys[i] + y0))
+
+
 def analyze(gray: np.ndarray, light_ridges: bool = False, ridge_period: float | None = None) -> Analysis:
     """Run the full image analysis once; counting afterwards is instant."""
     if gray.ndim != 2 or min(gray.shape) < 32:
@@ -344,6 +383,8 @@ def analyze(gray: np.ndarray, light_ridges: bool = False, ridge_period: float | 
         mask = rough
     ridges = (enhanced > 0) & mask
     cores, deltas = find_singular_points(orientation, coherence, mask, period)
+    for point in cores + deltas:
+        point.x, point.y = snap_to_ridge(ridges, (point.x, point.y), 0.5 * period)
     return Analysis(gray, enhanced, ridges, mask, orientation, coherence, period, cores, deltas, light_ridges)
 
 
@@ -408,6 +449,34 @@ def count_ridges(ridges: np.ndarray, start, end, period: float, endpoint_toleran
     return RidgeCount(len(crossings), tuple(start), tuple(end), crossings, excluded)
 
 
+def suggest_points(analysis: Analysis, core=None, delta=None):
+    """Pick a core and delta that belong to the same finger.
+
+    On a whole-hand scan the best core and the best delta can sit on
+    different fingers, so a delta is paired with the nearest core (or the
+    other way round when one point is already known). Either may be None.
+    """
+    reach = 30 * analysis.ridge_period
+
+    def nearest(point, candidates):
+        close = [c for c in candidates if math.hypot(c.x - point[0], c.y - point[1]) <= reach]
+        best = min(close, key=lambda c: math.hypot(c.x - point[0], c.y - point[1]), default=None)
+        return (best.x, best.y) if best else None
+
+    if core is not None and delta is not None:
+        return core, delta
+    if core is not None:
+        return core, nearest(core, analysis.deltas)
+    if delta is not None:
+        return nearest(delta, analysis.cores), delta
+    for d in analysis.deltas:
+        partner = nearest((d.x, d.y), analysis.cores)
+        if partner:
+            return partner, (d.x, d.y)
+    first = analysis.cores[0] if analysis.cores else None
+    return ((first.x, first.y) if first else None), None
+
+
 def count_between(analysis: Analysis, core, delta) -> RidgeCount:
     return count_ridges(analysis.ridges, delta, core, analysis.ridge_period)
 
@@ -430,23 +499,26 @@ def make_base_image(analysis: Analysis, show_ridges: bool = True) -> np.ndarray:
 def render_overlay(analysis: Analysis, result: RidgeCount, labels=("delta", "core")) -> np.ndarray:
     image = make_base_image(analysis)
     h, w = image.shape[:2]
-    s = max(1.0, min(h, w) / 400)
-    thick = max(1, int(round(s)))
-    r = max(3, int(round(4 * s)))
     font = cv2.FONT_HERSHEY_SIMPLEX
+    # Markers scale with the ridge spacing so they never hide the ridges they mark.
+    period = analysis.ridge_period
+    r = max(2, int(round(0.3 * period)))
+    thick = max(1, int(round(period / 10)))
+    small = max(0.3, period / 22)
     cv2.line(image, result.start, result.end, (0, 215, 255), thick, cv2.LINE_AA)
     for p in result.excluded:
         cv2.circle(image, p, r, (170, 170, 170), thick, cv2.LINE_AA)
     for i, p in enumerate(result.crossings, start=1):
         cv2.circle(image, p, r, (60, 220, 60), -1, cv2.LINE_AA)
-        cv2.putText(image, str(i), (p[0] + r + 2, p[1] - r), font, 0.4 * s, (60, 220, 60), thick, cv2.LINE_AA)
+        cv2.putText(image, str(i), (p[0] + r + 1, p[1] - r), font, small, (40, 160, 40), thick, cv2.LINE_AA)
     for point, label, color in ((result.start, labels[0], (200, 60, 200)), (result.end, labels[1], (60, 60, 230))):
         cv2.circle(image, point, 2 * r, color, thick + 1, cv2.LINE_AA)
-        cv2.putText(image, label, (point[0] + 2 * r + 3, point[1] + r), font, 0.5 * s, color, thick, cv2.LINE_AA)
+        cv2.putText(image, label, (point[0] + 2 * r + 3, point[1] + 3 * r), font, 1.4 * small, color, thick, cv2.LINE_AA)
+    s = max(1.0, min(h, w) / 400)
     text = f"Ridge count: {result.count}"
-    (tw, th), base = cv2.getTextSize(text, font, 0.7 * s, thick + 1)
+    (tw, th), base = cv2.getTextSize(text, font, 0.7 * s, int(s) + 1)
     cv2.rectangle(image, (0, 0), (tw + 16, th + base + 16), (30, 30, 30), -1)
-    cv2.putText(image, text, (8, th + 8), font, 0.7 * s, (60, 220, 60), thick + 1, cv2.LINE_AA)
+    cv2.putText(image, text, (8, th + 8), font, 0.7 * s, (60, 220, 60), int(s) + 1, cv2.LINE_AA)
     return image
 
 
@@ -541,13 +613,11 @@ def cli_main(argv) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    points, sources = {}, {}
-    for name, given, found in (("core", args.core, analysis.cores), ("delta", args.delta, analysis.deltas)):
-        if given is not None:
-            points[name], sources[name] = given, "manual"
-        elif found:
-            points[name], sources[name] = (found[0].x, found[0].y), "auto"
-        else:
+    core, delta = suggest_points(analysis, args.core, args.delta)
+    points = {"core": core, "delta": delta}
+    sources = {"core": "manual" if args.core else "auto", "delta": "manual" if args.delta else "auto"}
+    for name in ("core", "delta"):
+        if points[name] is None:
             print(f"error: couldn't find the {name} automatically; give it with --{name} X,Y", file=sys.stderr)
             return 1
 
@@ -802,22 +872,26 @@ class RidgeCounterApp:
             message += "Couldn't find the core and delta automatically — click on the image to place them."
         self.status_text.set(message)
 
-    def _apply_auto_points(self):
-        for name, found in (("core", self.analysis.cores), ("delta", self.analysis.deltas)):
-            if found:
-                self.points[name], self.sources[name] = (found[0].x, found[0].y), "auto"
-            else:
-                self.points[name], self.sources[name] = None, None
+    def _apply_auto_points(self, keep_manual=False):
+        kept = {n: p for n, p in self.points.items() if keep_manual and self.sources[n] == "manual"}
+        core, delta = suggest_points(self.analysis, kept.get("core"), kept.get("delta"))
+        for name, point in (("core", core), ("delta", delta)):
+            if name not in kept:
+                self.points[name], self.sources[name] = point, ("auto" if point else None)
         self.place_mode.set("core" if self.points["core"] is None or self.points["delta"] is not None else "delta")
 
     def auto_detect(self):
         if self.analysis is None or self.busy:
             return
-        self._apply_auto_points()
+        manual = [n for n in ("core", "delta") if self.sources[n] == "manual"]
+        self._apply_auto_points(keep_manual=len(manual) == 1)
         self._recount()
         self._redraw(image_layer=False)
         if None in self.points.values():
             self.status_text.set("Auto-detect couldn't find both points here — click on the image to place them.")
+        elif len(manual) == 1:
+            other = "delta" if manual[0] == "core" else "core"
+            self.status_text.set(f"Kept your {manual[0]} and found the nearest {other} on the same finger.")
         else:
             self.status_text.set("Points reset to the automatic suggestions.")
 
