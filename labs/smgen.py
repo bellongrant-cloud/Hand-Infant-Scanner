@@ -9,7 +9,7 @@ UNITS = {
     'mbar': 100.0, 'mm': 1e-3, 'mL': 1e-6, 'g': 1e-3, 'kg': 1.0, 'm': 1.0,
     's': 1.0, 'min': 60.0, 'gal': 3.785411784e-3, 'L': 1e-3,
     'psi': 6894.757293168361, 'lb': 0.45359237, 'Pa': 1.0,
-    'in': 0.0254, 'W': 1.0, 'V': 1.0, 'A': 1.0,
+    'in': 0.0254, 'W': 1.0, 'V': 1.0, 'A': 1.0, 'N': 1.0,
 }
 
 TOK = re.compile(r"\s*(?:(\d+\.\d+|\d+)|('[A-Za-z]+)|([A-Za-zΑ-Ωα-ωπΔ][\w.]*)|(:=|[-+*/^(),]))")
@@ -130,6 +130,7 @@ class Env:
         if k == 'call':
             name, args = n[1], [self.ev(a, loc) for a in n[2]]
             if name == 'sqrt': return np.sqrt(args[0])
+            if name in ('sin', 'cos', 'tan'): return getattr(np, name)(args[0])
             if name == 'el': return args[0][int(args[1]) - 1]
             if name == 'mat':
                 r, c = int(args[-2]), int(args[-1])

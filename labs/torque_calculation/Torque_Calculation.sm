@@ -1,0 +1,384 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<?application progid="SMath Solver" version="1.5.0.9678"?>
+<worksheet xmlns="http://smath.info/schemas/worksheet/1.0">
+  <settings ppi="96">
+    <identity>
+      <id>3c71e9a4-2b58-4d0f-8e16-5a9b7d24c3e8</id>
+      <revision>1</revision>
+    </identity>
+    <metadata lang="eng">
+      <author>Grant Bellon</author>
+    </metadata>
+    <calculation>
+      <precision>4</precision>
+      <exponentialThreshold>5</exponentialThreshold>
+      <trailingZeros>false</trailingZeros>
+      <significantDigitsMode>false</significantDigitsMode>
+      <mixedNumbers>false</mixedNumbers>
+      <roundingMode>0</roundingMode>
+      <approximateEqualAccuracy>3</approximateEqualAccuracy>
+      <fractions>decimal</fractions>
+    </calculation>
+    <pageModel active="false" viewMode="2" printGrid="false" printAreas="true" simpleEqualsOnly="false" printBackgroundImages="true" hideElementsHighlightings="false">
+      <paper id="1" orientation="Portrait" width="850" height="1100" />
+      <margins left="39" right="39" top="49" bottom="49" />
+      <header alignment="Center" color="#a9a9a9">&amp;[DATE] &amp;[TIME] - &amp;[FILENAME]</header>
+      <footer alignment="Center" color="#a9a9a9">&amp;[PAGENUM] / &amp;[COUNT]</footer>
+      <backgrounds />
+    </pageModel>
+    <dependencies>
+      <assembly name="SMath Core" version="1.75.9678.0" guid="a37cba83-b69c-4c71-9992-55ff666763bd" />
+      <assembly name="MathRegion" version="1.75.9678.0" guid="02f1ab51-215b-466e-a74d-5d8b1cf85e8d" />
+      <assembly name="PictureRegion" version="1.75.9678.0" guid="06b5df04-393e-4be7-9107-305196fcb861" />
+      <assembly name="TextRegion" version="1.75.9678.0" guid="485d28c5-349a-48b6-93be-12a35a1c1e39" />
+    </dependencies>
+  </settings>
+  <regions type="content">
+    <region left="18" top="0" width="760" height="26" color="#000000" fontSize="12">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p style="font-size: 12px; font-weight: bold;">Grant Bellon</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="38" width="760" height="26" color="#000000" fontSize="12">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p style="font-size: 12px; font-weight: bold;">Drive Wheel Torque Calculation</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="86" width="760" height="61" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>The torque the drive motor must supply at the wheel is the wheel radius times the total force needed to overcome rolling resistance, climb the incline, and accelerate the load. A safety factor is then applied to get the design torque.</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="163" width="760" height="26" color="#000000" fontSize="12">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p style="font-size: 12px; font-weight: bold;">Given Data</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="197" width="120" height="29" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">R</e>
+          <e type="operand">48</e>
+          <e type="operand" style="unit">mm</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="18" top="240" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Wheel radius</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="275" width="110" height="29" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">C.f</e>
+          <e type="operand">0.02</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="18" top="318" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Rolling resistance coefficient (rubber on concrete)</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="353" width="120" height="29" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">W</e>
+          <e type="operand">1470</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="158" top="353" width="120" height="29" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">m</e>
+          <e type="operand">150</e>
+          <e type="operand" style="unit">kg</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="18" top="396" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Total weight and mass of the loaded vehicle</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="431" width="140" height="50" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">a</e>
+          <e type="operand">0.447</e>
+          <e type="operand" style="unit">m</e>
+          <e type="operator" args="2">*</e>
+          <e type="operand" style="unit">s</e>
+          <e type="operand">2</e>
+          <e type="operator" args="2">^</e>
+          <e type="operator" args="2">/</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="18" top="495" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Acceleration</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="530" width="180" height="45" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">θ.ramp</e>
+          <e type="operand">4.76</e>
+          <e type="operand">π</e>
+          <e type="operator" args="2">*</e>
+          <e type="operand">180</e>
+          <e type="operator" args="2">/</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="218" top="530" width="150" height="45" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">θ</e>
+          <e type="operand">5</e>
+          <e type="operand">π</e>
+          <e type="operator" args="2">*</e>
+          <e type="operand">180</e>
+          <e type="operator" args="2">/</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="18" top="589" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Incline angle: 4.76° (a 1:12 ramp) rounded up to 5° for the design calculation (angles in radians)</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="624" width="100" height="29" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">SF</e>
+          <e type="operand">1.5</e>
+          <e type="operator" args="2">:</e>
+        </input>
+      </math>
+    </region>
+    <region left="18" top="667" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Safety factor</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="712" width="760" height="26" color="#000000" fontSize="12">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p style="font-size: 12px; font-weight: bold;">Forces at the Wheel</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="746" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Rolling resistance</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="781" width="300" height="35" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">F.R</e>
+          <e type="operand">W</e>
+          <e type="operand">C.f</e>
+          <e type="operator" args="2">*</e>
+          <e type="operand">θ</e>
+          <e type="function" args="1">cos</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+        <contract>
+          <e type="operand" style="unit">N</e>
+        </contract>
+        <result action="numeric">
+          <e type="operand">29.2881</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operator" args="2">*</e>
+        </result>
+      </math>
+    </region>
+    <region left="18" top="830" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Grade (incline) force</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="865" width="260" height="35" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">F.B</e>
+          <e type="operand">W</e>
+          <e type="operand">θ</e>
+          <e type="function" args="1">sin</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+        <contract>
+          <e type="operand" style="unit">N</e>
+        </contract>
+        <result action="numeric">
+          <e type="operand">128.1189</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operator" args="2">*</e>
+        </result>
+      </math>
+    </region>
+    <region left="18" top="914" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Acceleration force</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="949" width="220" height="35" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">F.A</e>
+          <e type="operand">m</e>
+          <e type="operand">a</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+        <contract>
+          <e type="operand" style="unit">N</e>
+        </contract>
+        <result action="numeric">
+          <e type="operand">67.05</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operator" args="2">*</e>
+        </result>
+      </math>
+    </region>
+    <region left="18" top="998" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Total force</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="1033" width="320" height="35" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">F.total</e>
+          <e type="operand">F.R</e>
+          <e type="operand">F.B</e>
+          <e type="operator" args="2">+</e>
+          <e type="operand">F.A</e>
+          <e type="operator" args="2">+</e>
+          <e type="operator" args="2">:</e>
+        </input>
+        <contract>
+          <e type="operand" style="unit">N</e>
+        </contract>
+        <result action="numeric">
+          <e type="operand">224.4571</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operator" args="2">*</e>
+        </result>
+      </math>
+    </region>
+    <region left="18" top="1092" width="760" height="26" color="#000000" fontSize="12">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p style="font-size: 12px; font-weight: bold;">Torque</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="1126" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Required wheel torque</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="1161" width="240" height="35" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">T</e>
+          <e type="operand">R</e>
+          <e type="operand">F.total</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+        <contract>
+          <e type="operand" style="unit">N</e>
+          <e type="operand" style="unit">m</e>
+          <e type="operator" args="2">*</e>
+        </contract>
+        <result action="numeric">
+          <e type="operand">10.7739</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operand" style="unit">m</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">*</e>
+        </result>
+      </math>
+    </region>
+    <region left="18" top="1210" width="760" height="27" color="#000000" fontSize="10">
+      <text lang="eng" fontFamily="Arial" fontSize="10">
+        <content>
+          <p>Design torque with the safety factor applied</p>
+        </content>
+      </text>
+    </region>
+    <region left="18" top="1245" width="260" height="35" color="#000000" fontSize="10">
+      <math>
+        <input>
+          <e type="operand">T.design</e>
+          <e type="operand">SF</e>
+          <e type="operand">T</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">:</e>
+        </input>
+        <contract>
+          <e type="operand" style="unit">N</e>
+          <e type="operand" style="unit">m</e>
+          <e type="operator" args="2">*</e>
+        </contract>
+        <result action="numeric">
+          <e type="operand">16.1609</e>
+          <e type="operand" style="unit">N</e>
+          <e type="operand" style="unit">m</e>
+          <e type="operator" args="2">*</e>
+          <e type="operator" args="2">*</e>
+        </result>
+      </math>
+    </region>
+  </regions>
+</worksheet>
