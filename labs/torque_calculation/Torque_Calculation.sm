@@ -34,35 +34,35 @@
     </dependencies>
   </settings>
   <regions type="content">
-    <region left="18" top="0" width="760" height="26" color="#000000" fontSize="12">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="0" width="740" height="32" color="#000000" fontSize="12">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p style="font-size: 12px; font-weight: bold;">Grant Bellon</p>
         </content>
       </text>
     </region>
-    <region left="18" top="38" width="760" height="26" color="#000000" fontSize="12">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="44" width="740" height="32" color="#000000" fontSize="12">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p style="font-size: 12px; font-weight: bold;">Drive Wheel Torque Calculation</p>
         </content>
       </text>
     </region>
-    <region left="18" top="86" width="760" height="61" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="98" width="740" height="66" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>The torque the drive motor must supply at the wheel is the wheel radius times the total force needed to overcome rolling resistance, climb the incline, and accelerate the load. A safety factor is then applied to get the design torque.</p>
         </content>
       </text>
     </region>
-    <region left="18" top="163" width="760" height="26" color="#000000" fontSize="12">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="184" width="740" height="32" color="#000000" fontSize="12">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p style="font-size: 12px; font-weight: bold;">Given Data</p>
         </content>
       </text>
     </region>
-    <region left="18" top="197" width="120" height="29" color="#000000" fontSize="10">
+    <region left="18" top="228" width="120" height="30" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">R</e>
@@ -73,14 +73,14 @@
         </input>
       </math>
     </region>
-    <region left="18" top="240" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="276" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Wheel radius</p>
         </content>
       </text>
     </region>
-    <region left="18" top="275" width="110" height="29" color="#000000" fontSize="10">
+    <region left="18" top="318" width="110" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">C.f</e>
@@ -89,14 +89,14 @@
         </input>
       </math>
     </region>
-    <region left="18" top="318" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="371" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Rolling resistance coefficient (rubber on concrete)</p>
         </content>
       </text>
     </region>
-    <region left="18" top="353" width="120" height="29" color="#000000" fontSize="10">
+    <region left="18" top="413" width="120" height="30" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">W</e>
@@ -107,7 +107,7 @@
         </input>
       </math>
     </region>
-    <region left="158" top="353" width="120" height="29" color="#000000" fontSize="10">
+    <region left="18" top="461" width="120" height="30" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">m</e>
@@ -118,14 +118,14 @@
         </input>
       </math>
     </region>
-    <region left="18" top="396" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="509" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Total weight and mass of the loaded vehicle</p>
         </content>
       </text>
     </region>
-    <region left="18" top="431" width="140" height="50" color="#000000" fontSize="10">
+    <region left="18" top="551" width="140" height="68" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">a</e>
@@ -140,14 +140,14 @@
         </input>
       </math>
     </region>
-    <region left="18" top="495" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="637" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Acceleration</p>
         </content>
       </text>
     </region>
-    <region left="18" top="530" width="180" height="45" color="#000000" fontSize="10">
+    <region left="18" top="679" width="180" height="56" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">θ.ramp</e>
@@ -160,7 +160,7 @@
         </input>
       </math>
     </region>
-    <region left="218" top="530" width="150" height="45" color="#000000" fontSize="10">
+    <region left="18" top="753" width="150" height="56" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">θ</e>
@@ -173,14 +173,14 @@
         </input>
       </math>
     </region>
-    <region left="18" top="589" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="827" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Incline angle: 4.76° (a 1:12 ramp) rounded up to 5° for the design calculation (angles in radians)</p>
         </content>
       </text>
     </region>
-    <region left="18" top="624" width="100" height="29" color="#000000" fontSize="10">
+    <region left="18" top="869" width="100" height="30" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">SF</e>
@@ -189,28 +189,28 @@
         </input>
       </math>
     </region>
-    <region left="18" top="667" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="917" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Safety factor</p>
         </content>
       </text>
     </region>
-    <region left="18" top="712" width="760" height="26" color="#000000" fontSize="12">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="969" width="740" height="32" color="#000000" fontSize="12">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p style="font-size: 12px; font-weight: bold;">Forces at the Wheel</p>
         </content>
       </text>
     </region>
-    <region left="18" top="746" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1013" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Rolling resistance</p>
         </content>
       </text>
     </region>
-    <region left="18" top="781" width="300" height="35" color="#000000" fontSize="10">
+    <region left="18" top="1055" width="300" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">F.R</e>
@@ -232,14 +232,14 @@
         </result>
       </math>
     </region>
-    <region left="18" top="830" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1108" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Grade (incline) force</p>
         </content>
       </text>
     </region>
-    <region left="18" top="865" width="260" height="35" color="#000000" fontSize="10">
+    <region left="18" top="1150" width="260" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">F.B</e>
@@ -259,14 +259,14 @@
         </result>
       </math>
     </region>
-    <region left="18" top="914" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1203" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Acceleration force</p>
         </content>
       </text>
     </region>
-    <region left="18" top="949" width="220" height="35" color="#000000" fontSize="10">
+    <region left="18" top="1245" width="220" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">F.A</e>
@@ -285,14 +285,14 @@
         </result>
       </math>
     </region>
-    <region left="18" top="998" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1298" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Total force</p>
         </content>
       </text>
     </region>
-    <region left="18" top="1033" width="320" height="35" color="#000000" fontSize="10">
+    <region left="18" top="1340" width="320" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">F.total</e>
@@ -313,21 +313,21 @@
         </result>
       </math>
     </region>
-    <region left="18" top="1092" width="760" height="26" color="#000000" fontSize="12">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1403" width="740" height="32" color="#000000" fontSize="12">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p style="font-size: 12px; font-weight: bold;">Torque</p>
         </content>
       </text>
     </region>
-    <region left="18" top="1126" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1447" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Required wheel torque</p>
         </content>
       </text>
     </region>
-    <region left="18" top="1161" width="240" height="35" color="#000000" fontSize="10">
+    <region left="18" top="1489" width="248" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">T</e>
@@ -350,14 +350,14 @@
         </result>
       </math>
     </region>
-    <region left="18" top="1210" width="760" height="27" color="#000000" fontSize="10">
-      <text lang="eng" fontFamily="Arial" fontSize="10">
+    <region left="18" top="1542" width="740" height="30" color="#000000" fontSize="10">
+      <text lang="eng" width="740" fontFamily="Arial" fontSize="10">
         <content>
           <p>Design torque with the safety factor applied</p>
         </content>
       </text>
     </region>
-    <region left="18" top="1245" width="260" height="35" color="#000000" fontSize="10">
+    <region left="18" top="1584" width="262" height="35" color="#000000" fontSize="10">
       <math>
         <input>
           <e type="operand">T.design</e>

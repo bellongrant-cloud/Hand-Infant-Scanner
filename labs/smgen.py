@@ -173,6 +173,61 @@ def fmt_num(v):
     return items
 
 
+# ---- rendered-size estimates (px), deliberately generous ------------------
+ATOM_H = 20
+
+
+def _atom_w(t):
+    base, _, sub = t.partition('.')
+    return 8 * len(base) + 6 * len(sub) + 4
+
+
+def est(n):
+    """(width, height) of an expression node as SMath draws it."""
+    k = n[0]
+    if k in ('num', 'unit'):
+        return 8 * len(n[1]) + 4, ATOM_H
+    if k == 'id':
+        return _atom_w(n[1]), ATOM_H + (5 if '.' in n[1] else 0)
+    if k == 'paren':
+        w, h = est(n[1]); return w + 12, h + 4
+    if k == 'neg':
+        w, h = est(n[1]); return w + 10, h
+    if k == 'bin':
+        (wa, ha), (wb, hb) = est(n[2]), est(n[3])
+        op = n[1]
+        if op == '/':
+            return max(wa, wb) + 10, ha + hb + 6
+        if op == '^':
+            return wa + int(0.75 * wb) + 2, ha + int(0.6 * hb)
+        return wa + wb + 16, max(ha, hb)
+    if k == 'call':
+        name, args = n[1], n[2]
+        sizes = [est(a) for a in args]
+        if name == 'sqrt':
+            w, h = sizes[0]; return w + 18, h + 8
+        if name == 'el':
+            (wv, hv), (wi, hi) = sizes; return wv + int(0.75 * wi), hv + 8
+        if name == 'mat':
+            r, c = int(float(args[-2][1])), int(float(args[-1][1]))
+            cells = sizes[:-2]
+            rows_h = [max(h for _, h in cells[i * c:(i + 1) * c]) for i in range(r)]
+            col_w = [max(w for w, _ in cells[j::c]) for j in range(c)]
+            return sum(col_w) + 16 * c + 10, sum(rows_h) + 4 * r + 10
+        w = _atom_w(name) + 14 + sum(x for x, _ in sizes) + 8 * max(len(sizes) - 1, 0)
+        return w, max([ATOM_H] + [h for _, h in sizes])
+    raise ValueError(n)
+
+
+def est_result(val, contract):
+    """(width, height) of a displayed numeric result (number or column vector, plus unit)."""
+    v = np.asarray(val, dtype=float)
+    uw, uh = est(parse(contract)) if contract else (0, ATOM_H)
+    if v.ndim == 0:
+        return 90 + uw, max(ATOM_H, uh)
+    return 100 + uw, max(len(v) * (ATOM_H + 4) + 10, uh)
+
+
 class Sheet:
     def __init__(self):
         self.env = Env(); self.regions = []; self.y = 0
@@ -203,25 +258,25 @@ class Sheet:
             items += cu + [('operator', '*', 2)]
         return items
 
-    def text(self, s, bold=False, w=760, h=None, left=18, gap=8):
-        if h is None:
-            lines = max(1, math.ceil(len(s) / (w / 6.6)))
-            h = 10 + 17 * lines
+    def text(self, s, bold=False, w=740, h=None, left=18, gap=12):
+        lines = max(1, math.ceil(len(s) * (8.5 if bold else 7.2) / (w - 10)))
+        h = max(h or 0, 12 + (20 if bold else 18) * lines)
         style = ' style="font-size: 12px; font-weight: bold;"' if bold else ''
         fs = 12 if bold else 10
         self.regions.append('\n'.join([
             f'    <region left="{left}" top="{self.y}" width="{w}" height="{h}" color="#000000" fontSize="{fs}">',
-            '      <text lang="eng" fontFamily="Arial" fontSize="10">', '        <content>',
+            f'      <text lang="eng" width="{w}" fontFamily="Arial" fontSize="10">', '        <content>',
             f'          <p{style}>{escape(s)}</p>', '        </content>', '      </text>', '    </region>']))
         self.y += h + gap
 
-    def row(self, items, gap=14):
-        """items: list of (kind, src, width, height[, contract]) laid out left->right.
-        kind 'def' : 'name := expr' (shows result if show, contract optional)
+    def row(self, items, gap=18):
+        """items: list of (kind, src, width, height[, contract]); each is placed on its own line.
+        kind 'def' : 'name := expr'
         kind 'defq': definition, show result
         kind 'fn'  : 'f(a,b) := body'
-        kind 'eval': 'name' with result"""
-        left = 18; hmax = 0
+        kind 'eval': 'name' with result
+        The width/height given are minimums; the drawn size is estimated from the expression."""
+        left = 18
         for it in items:
             kind, src, w, h = it[:4]; contract = it[4] if len(it) > 4 else None
             if kind in ('def', 'defq'):
@@ -229,20 +284,28 @@ class Sheet:
                 node = parse(rhs)
                 val = self.env.ev(node); self.env.vars[name] = val
                 items_ = [('operand', name, None)] + rpn(node) + [('operator', ':', 2)]
-                res = self._result_items(val, contract) if kind == 'defq' else None
-                self._math(left, self.y, w, h, items_, contract if kind == 'defq' else None, res)
+                ew, eh = est(('bin', ':=', ('id', name), node))
+                res = None
+                if kind == 'defq':
+                    res = self._result_items(val, contract)
+                    rw, rh = est_result(val, contract); ew += rw + 20; eh = max(eh, rh)
+                ew, eh = max(w, ew), max(h, eh + 10)
+                self._math(left, self.y, ew, eh, items_, contract if kind == 'defq' else None, res)
             elif kind == 'fn':
                 lhs, rhs = [s.strip() for s in src.split(':=', 1)]
                 fname, params = re.match(r"([^\(]+)\((.*)\)", lhs).groups()
                 params = [p.strip() for p in params.split(',')]
                 node = parse(rhs); self.env.funcs[fname] = (params, node)
                 items_ = [('operand', p, None) for p in params] + [('function', fname, len(params))] + rpn(node) + [('operator', ':', 2)]
-                self._math(left, self.y, w, h, items_)
+                ew, eh = est(('bin', ':=', parse(lhs), node))
+                ew, eh = max(w, ew), max(h, eh + 10)
+                self._math(left, self.y, ew, eh, items_)
             elif kind == 'eval':
                 node = parse(src); val = self.env.ev(node)
-                self._math(left, self.y, w, h, rpn(node), contract, self._result_items(val, contract))
-            left += w + 20; hmax = max(hmax, h)
-        self.y += hmax + gap
+                ew, eh = est(node); rw, rh = est_result(val, contract)
+                ew, eh = max(w, ew + rw + 20), max(h, max(eh, rh) + 10)
+                self._math(left, self.y, ew, eh, rpn(node), contract, self._result_items(val, contract))
+            self.y += eh + gap
 
     def picture(self, png_path, w, h, left=18, gap=16):
         b64 = base64.b64encode(open(png_path, 'rb').read()).decode()
