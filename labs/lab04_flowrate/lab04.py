@@ -34,7 +34,7 @@ S.space(8)
 # ------------------------------------------------------------------ given data
 S.text('Given Data', bold=True, h=26)
 S.text('Environmental conditions')
-S.row([('def', "P.atm := 1004.8*'mbar", 140, 29), ('def', "U.P_atm := 0.1*'mbar", 140, 29),
+S.row([('def', "P.atm := 100.48*'kPa", 140, 29), ('def', "U.P_atm := 0.01*'kPa", 140, 29),
        ('def', 'T.atm_degC := 24.4', 130, 29), ('def', 'U.T_atm_degC := 1', 130, 29)])
 S.text('Geometry measurements')
 S.row([('def', "D.V_upstream := 27.1*'mm", 170, 29), ('def', "U.D_V_upstream := 0.01*'mm", 190, 29)])

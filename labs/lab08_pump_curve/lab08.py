@@ -60,7 +60,7 @@ S.space(8)
 # ------------------------------------------------------------------ given data
 S.text('Given Data', bold=True, h=26)
 S.text('Environmental conditions')
-S.row([('def', "P.atm := 1004.7*'mbar", 140, 29), ('def', "U.P_atm := 0.1*'mbar", 140, 29),
+S.row([('def', "P.atm := 100.47*'kPa", 140, 29), ('def', "U.P_atm := 0.01*'kPa", 140, 29),
        ('def', 'T.atm_degC := 25.8', 130, 29), ('def', 'U.T_atm_degC := 1', 130, 29)])
 S.row([('def', "g := 9.81*'m/'s^2", 120, 50)])
 S.text('Water density sample (the volume and mass uncertainties were not recorded; the graduated cylinder '

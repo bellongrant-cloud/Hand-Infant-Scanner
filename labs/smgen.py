@@ -6,7 +6,7 @@ from xml.sax.saxutils import escape
 import numpy as np
 
 UNITS = {
-    'mbar': 100.0, 'mm': 1e-3, 'mL': 1e-6, 'g': 1e-3, 'kg': 1.0, 'm': 1.0,
+    'mbar': 100.0, 'kPa': 1000.0, 'mm': 1e-3, 'mL': 1e-6, 'g': 1e-3, 'kg': 1.0, 'm': 1.0,
     's': 1.0, 'min': 60.0, 'gal': 3.785411784e-3, 'L': 1e-3,
     'psi': 6894.757293168361, 'lb': 0.45359237, 'Pa': 1.0,
     'in': 0.0254, 'W': 1.0, 'V': 1.0, 'A': 1.0, 'N': 1.0,
@@ -225,7 +225,7 @@ def est_result(val, contract):
     uw, uh = est(parse(contract)) if contract else (0, ATOM_H)
     if v.ndim == 0:
         return 90 + uw, max(ATOM_H, uh)
-    return 100 + uw, max(len(v) * (ATOM_H + 4) + 10, uh)
+    return 100 + uw, max(len(v) * (ATOM_H + 6) + 16, uh)
 
 
 class Sheet:
@@ -269,7 +269,7 @@ class Sheet:
             f'          <p{style}>{escape(s)}</p>', '        </content>', '      </text>', '    </region>']))
         self.y += h + gap
 
-    def row(self, items, gap=18):
+    def row(self, items, gap=28):
         """items: list of (kind, src, width, height[, contract]); each is placed on its own line.
         kind 'def' : 'name := expr'
         kind 'defq': definition, show result

@@ -58,7 +58,7 @@ S.space(8)
 # ------------------------------------------------------------------ given data
 S.text('Given Data', bold=True, h=26)
 S.text('Environmental conditions and constants')
-S.row([('def', "P.atm := 1003.8*'mbar", 140, 29), ('def', "U.P_atm := 0.1*'mbar", 140, 29),
+S.row([('def', "P.atm := 100.38*'kPa", 140, 29), ('def', "U.P_atm := 0.01*'kPa", 140, 29),
        ('def', "T.atm := (21.9+273.15)*'K", 200, 29), ('def', "U.T_atm := 1*'K", 120, 29)])
 S.row([('def', "g := 9.81*'m/'s^2", 120, 50), ('def', "ρ.water := 1000*'kg/'m^3", 170, 50),
        ('def', "R.air := 0.287*1000*'J/('kg*'K)", 220, 50)])
