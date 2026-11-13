@@ -6,7 +6,7 @@ from xml.sax.saxutils import escape
 import numpy as np
 
 UNITS = {
-    'mbar': 100.0, 'kPa': 1000.0, 'mm': 1e-3, 'mL': 1e-6, 'g': 1e-3, 'kg': 1.0, 'm': 1.0,
+    'mbar': 100.0, 'kPa': 1000.0, 'cm': 1e-2, 'mm': 1e-3, 'mL': 1e-6, 'g': 1e-3, 'kg': 1.0, 'm': 1.0,
     's': 1.0, 'min': 60.0, 'gal': 3.785411784e-3, 'L': 1e-3,
     'psi': 6894.757293168361, 'lb': 0.45359237, 'Pa': 1.0,
     'in': 0.0254, 'W': 1.0, 'V': 1.0, 'A': 1.0, 'N': 1.0,
