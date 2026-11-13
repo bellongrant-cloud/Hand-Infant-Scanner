@@ -1,4 +1,4 @@
-"""Write the Lab 10 recorded data as a PDF: typed tables, then the original data sheet photos.
+"""Write the Lab 10 recorded data as a one-page PDF of typed tables.
 
 Usage: python3 data_pdf.py OUTPUT_DIR
 """
@@ -36,7 +36,7 @@ def table(rows, widths):
 
 
 story = [
-    Paragraph('Lab 10 – External Flow over a Cylinder: Recorded Data', title),
+    Paragraph('Lab 10 – External Flow over a Cylinder', title),
     Paragraph('Grant Bellon', sub),
     Paragraph('Environmental Conditions', h2),
     table([['Quantity', 'Value', 'Uncertainty'],
@@ -52,22 +52,17 @@ story = [
            ['Cylinder length, L<sub>cylinder</sub>', '5 7/8 in', '± 1/32 in'],
            ['Water channel width, w<sub>channel</sub>', '6 1/4 in', '± 1/32 in'],
            ['Wetted height, h<sub>wetted</sub>', '5 1/8 in', '± 1/32 in'],
-           ['Bearing to eyebolt, L<sub>1</sub>', '2 1/16 in', 'not recorded'],
-           ['Bearing to cylinder center, L<sub>2</sub>', '6 1/4 in', '± 1/32 in']], [3.0, 1.75, 1.75]),
+           ['L<sub>1</sub>', '2 1/16 in', ''],
+           ['L<sub>2</sub>', '6 1/4 in', '± 1/32 in']], [3.0, 1.75, 1.75]),
     Paragraph('Drag Force Runs', h2),
     table([['Motor controller setpoint', 'Flowrate, Q', 'U<sub>Q</sub>', 'Tension, T', 'U<sub>T</sub>'],
-           ['10', '52.7 GPM', '± 0.5 GPM', '0.146 N', '± 0.01 N'],
-           ['20', '106.2 GPM', '± 0.5 GPM', '1.02 N', '± 0.01 N'],
-           ['30', '162.8 GPM', '± 2 GPM', '2.86 N', '± 0.1 N'],
-           ['40', '208.2 GPM', '± 3 GPM', '3.68 N', '± 0.1 N'],
-           ['50', '223.5 GPM', '± 5 GPM', '3.98 N', '± 0.1 N'],
-           ['60', '247.8 GPM', '± 7 GPM', '4.73 N', '± 0.2 N']], [1.9, 1.2, 1.1, 1.1, 1.0]),
-    Paragraph('Flow pattern sketches for each setpoint are on the original data sheets that follow.', sub),
+           ['10', '52.7 G/min', '± 0.5 G/min', '0.146 N', '± 0.01 N'],
+           ['20', '106.2 G/min', '± 0.5 G/min', '1.02 N', '± 0.01 N'],
+           ['30', '162.8 G/min', '± 2 G/min', '2.86 N', '± 0.1 N'],
+           ['40', '208.2 G/min', '± 3 G/min', '3.68 N', '± 0.1 N'],
+           ['50', '223.5 G/min', '± 5 G/min', '3.98 N', '± 0.1 N'],
+           ['60', '247.8 G/min', '± 7 G/min', '4.73 N', '± 0.2 N']], [1.9, 1.2, 1.1, 1.1, 1.0]),
 ]
-
-for i in range(1, 5):
-    story += [PageBreak(), Paragraph(f'Original Data Sheet, Page {i}', h2),
-              Image(os.path.join(HERE, 'data_sheets', f'sheet{i}.jpg'), width=6.3 * inch, height=8.4 * inch)]
 
 SimpleDocTemplate(os.path.join(OUT, 'Lab_10_-_Recorded_Data.pdf'), pagesize=letter,
                   leftMargin=0.9 * inch, rightMargin=0.9 * inch, topMargin=0.7 * inch, bottomMargin=0.6 * inch,
